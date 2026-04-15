@@ -1,0 +1,1106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SplitEase — Complete Technical Documentation</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; color: #1e293b; background: #fff; font-size: 13px; line-height: 1.6; }
+
+  /* Cover page */
+  .cover { page-break-after: always; min-height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; background: linear-gradient(135deg, #0f0c29, #302b63, #24243e); color: white; text-align: center; padding: 60px 40px; }
+  .cover-logo { width: 80px; height: 80px; background: linear-gradient(135deg, #6366f1, #a855f7); border-radius: 20px; display: flex; align-items: center; justify-content: center; font-size: 36px; margin: 0 auto 24px; }
+  .cover h1 { font-size: 48px; font-weight: 800; margin-bottom: 8px; letter-spacing: -1px; }
+  .cover .subtitle { font-size: 18px; opacity: 0.7; margin-bottom: 40px; }
+  .cover-meta { display: flex; gap: 32px; justify-content: center; flex-wrap: wrap; }
+  .cover-meta-item { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 12px; padding: 16px 24px; }
+  .cover-meta-item .label { font-size: 11px; opacity: 0.6; text-transform: uppercase; letter-spacing: 1px; }
+  .cover-meta-item .value { font-size: 15px; font-weight: 600; margin-top: 4px; }
+  .cover-badge { display: inline-flex; gap: 8px; margin-top: 40px; flex-wrap: wrap; justify-content: center; }
+  .badge { background: rgba(99,102,241,0.3); border: 1px solid rgba(99,102,241,0.5); border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600; }
+
+  /* TOC */
+  .toc-page { page-break-after: always; padding: 60px 50px; }
+  .toc-page h2 { font-size: 28px; font-weight: 700; color: #6366f1; border-bottom: 3px solid #6366f1; padding-bottom: 12px; margin-bottom: 32px; }
+  .toc-section { margin-bottom: 8px; }
+  .toc-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px dotted #e2e8f0; }
+  .toc-item .toc-title { color: #1e293b; font-weight: 500; }
+  .toc-item .toc-num { color: #94a3b8; font-size: 12px; }
+  .toc-sub { padding-left: 20px; }
+  .toc-sub .toc-item .toc-title { font-weight: 400; color: #475569; }
+  .toc-section-header { font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #6366f1; margin: 20px 0 8px; }
+
+  /* Sections */
+  .section { padding: 50px; page-break-before: always; }
+  .section:first-of-type { page-break-before: auto; }
+  h2.section-title { font-size: 26px; font-weight: 700; color: #6366f1; border-left: 4px solid #6366f1; padding-left: 16px; margin-bottom: 28px; }
+  h3 { font-size: 16px; font-weight: 700; color: #1e293b; margin: 28px 0 12px; border-bottom: 1px solid #e2e8f0; padding-bottom: 6px; }
+  h4 { font-size: 14px; font-weight: 600; color: #334155; margin: 18px 0 8px; }
+  p { margin-bottom: 12px; color: #475569; }
+  ul, ol { padding-left: 20px; margin-bottom: 12px; }
+  li { margin-bottom: 5px; color: #475569; }
+  strong { color: #1e293b; }
+
+  /* Tables */
+  table { width: 100%; border-collapse: collapse; margin: 16px 0 24px; font-size: 12px; }
+  th { background: #6366f1; color: white; padding: 10px 14px; text-align: left; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; }
+  td { padding: 9px 14px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  tr:hover td { background: #eef2ff; }
+
+  /* Code */
+  pre { background: #0f172a; color: #e2e8f0; border-radius: 10px; padding: 16px; font-family: 'Courier New', monospace; font-size: 11px; line-height: 1.7; margin: 12px 0; overflow: hidden; border-left: 3px solid #6366f1; }
+  code { background: #f1f5f9; color: #6366f1; padding: 2px 6px; border-radius: 4px; font-family: 'Courier New', monospace; font-size: 11px; }
+
+  /* Callout boxes */
+  .callout { border-radius: 10px; padding: 14px 18px; margin: 16px 0; border-left: 4px solid; }
+  .callout-info { background: #eff6ff; border-color: #3b82f6; }
+  .callout-info strong { color: #1d4ed8; }
+  .callout-success { background: #f0fdf4; border-color: #22c55e; }
+  .callout-success strong { color: #15803d; }
+  .callout-warning { background: #fffbeb; border-color: #f59e0b; }
+  .callout-warning strong { color: #b45309; }
+  .callout-purple { background: #faf5ff; border-color: #a855f7; }
+  .callout-purple strong { color: #7e22ce; }
+
+  /* Cards */
+  .card-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin: 16px 0; }
+  .card { border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px; }
+  .card h4 { margin-top: 0; color: #6366f1; }
+  .card-accent { border-left: 4px solid #6366f1; }
+
+  /* Flow diagram */
+  .flow { display: flex; align-items: center; gap: 8px; margin: 16px 0; flex-wrap: wrap; }
+  .flow-step { background: #6366f1; color: white; border-radius: 8px; padding: 8px 14px; font-size: 12px; font-weight: 600; }
+  .flow-arrow { color: #94a3b8; font-size: 18px; font-weight: bold; }
+  .flow-alt { background: #f1f5f9; color: #475569; border-radius: 8px; padding: 8px 14px; font-size: 12px; }
+
+  /* Tech stack pill */
+  .tech-pill { display: inline-flex; align-items: center; gap: 6px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600; color: #475569; margin: 3px; }
+  .tech-pill.primary { background: #eef2ff; border-color: #c7d2fe; color: #4338ca; }
+
+  /* Section divider */
+  .divider { height: 1px; background: linear-gradient(to right, #6366f1, transparent); margin: 24px 0; }
+
+  /* API route box */
+  .api-route { background: #0f172a; color: #e2e8f0; border-radius: 8px; padding: 10px 14px; font-family: 'Courier New', monospace; font-size: 11px; margin: 8px 0; display: flex; align-items: center; gap: 12px; }
+  .method { padding: 3px 8px; border-radius: 4px; font-weight: 700; font-size: 10px; }
+  .get { background: #22c55e; color: #000; }
+  .post { background: #3b82f6; color: #fff; }
+  .patch { background: #f59e0b; color: #000; }
+  .delete { background: #ef4444; color: #fff; }
+
+  /* Page number footer via @page */
+  @page { size: A4; margin: 15mm 15mm 20mm 15mm; }
+  @media print {
+    .section { padding: 30px 40px; }
+    .cover { min-height: auto; padding: 80px 40px; }
+  }
+
+  .page-num { text-align: center; color: #94a3b8; font-size: 10px; margin-top: 40px; padding-top: 16px; border-top: 1px solid #f1f5f9; }
+  .chapter-num { display: inline-block; background: #6366f1; color: white; width: 32px; height: 32px; border-radius: 8px; text-align: center; line-height: 32px; font-weight: 700; font-size: 14px; margin-right: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ===== COVER ===== -->
+<div class="cover">
+  <div class="cover-logo">💸</div>
+  <h1>SplitEase</h1>
+  <div class="subtitle">Complete Technical Documentation</div>
+  <p style="opacity:0.5; font-size:13px; max-width:500px; margin:0 auto 32px;">Full-stack expense splitting app — architecture, frontend, backend, database, APIs, build process, and deployment guide</p>
+  <div class="cover-meta">
+    <div class="cover-meta-item">
+      <div class="label">Version</div>
+      <div class="value">1.0.0</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Stack</div>
+      <div class="value">Next.js 16 + Prisma 7</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Database</div>
+      <div class="value">SQLite (libSQL)</div>
+    </div>
+    <div class="cover-meta-item">
+      <div class="label">Auth</div>
+      <div class="value">NextAuth v4</div>
+    </div>
+  </div>
+  <div class="cover-badge">
+    <span class="badge">TypeScript</span>
+    <span class="badge">Tailwind CSS 4</span>
+    <span class="badge">Radix UI</span>
+    <span class="badge">Framer Motion</span>
+    <span class="badge">bcryptjs</span>
+    <span class="badge">Zod</span>
+  </div>
+</div>
+
+<!-- ===== TABLE OF CONTENTS ===== -->
+<div class="toc-page">
+  <h2>Table of Contents</h2>
+
+  <div class="toc-section-header">Part 1 — Overview</div>
+  <div class="toc-section">
+    <div class="toc-item"><span class="toc-title">1. Project Overview &amp; Goals</span><span class="toc-num">3</span></div>
+    <div class="toc-item"><span class="toc-title">2. Feature List</span><span class="toc-num">3</span></div>
+    <div class="toc-item"><span class="toc-title">3. Tech Stack Summary</span><span class="toc-num">4</span></div>
+  </div>
+
+  <div class="toc-section-header">Part 2 — Architecture</div>
+  <div class="toc-section">
+    <div class="toc-item"><span class="toc-title">4. System Architecture</span><span class="toc-num">5</span></div>
+    <div class="toc-sub">
+      <div class="toc-item"><span class="toc-title">4.1 High-level Architecture Diagram</span><span class="toc-num">5</span></div>
+      <div class="toc-item"><span class="toc-title">4.2 Request Flow</span><span class="toc-num">5</span></div>
+      <div class="toc-item"><span class="toc-title">4.3 Folder Structure</span><span class="toc-num">6</span></div>
+    </div>
+  </div>
+
+  <div class="toc-section-header">Part 3 — Database</div>
+  <div class="toc-section">
+    <div class="toc-item"><span class="toc-title">5. Database Design</span><span class="toc-num">7</span></div>
+    <div class="toc-sub">
+      <div class="toc-item"><span class="toc-title">5.1 Schema Overview</span><span class="toc-num">7</span></div>
+      <div class="toc-item"><span class="toc-title">5.2 Entity Relationship Diagram</span><span class="toc-num">7</span></div>
+      <div class="toc-item"><span class="toc-title">5.3 All Models Explained</span><span class="toc-num">8</span></div>
+    </div>
+  </div>
+
+  <div class="toc-section-header">Part 4 — Backend</div>
+  <div class="toc-section">
+    <div class="toc-item"><span class="toc-title">6. Authentication System</span><span class="toc-num">10</span></div>
+    <div class="toc-item"><span class="toc-title">7. API Routes Reference</span><span class="toc-num">11</span></div>
+    <div class="toc-item"><span class="toc-title">8. Business Logic — Balance Calculation</span><span class="toc-num">13</span></div>
+  </div>
+
+  <div class="toc-section-header">Part 5 — Frontend</div>
+  <div class="toc-section">
+    <div class="toc-item"><span class="toc-title">9. Pages &amp; Components</span><span class="toc-num">14</span></div>
+    <div class="toc-item"><span class="toc-title">10. UI Component Library</span><span class="toc-num">15</span></div>
+    <div class="toc-item"><span class="toc-title">11. Routing &amp; Navigation</span><span class="toc-num">16</span></div>
+  </div>
+
+  <div class="toc-section-header">Part 6 — Build &amp; Deploy</div>
+  <div class="toc-section">
+    <div class="toc-item"><span class="toc-title">12. Environment Variables</span><span class="toc-num">17</span></div>
+    <div class="toc-item"><span class="toc-title">13. Build Setup &amp; Commands</span><span class="toc-num">17</span></div>
+    <div class="toc-item"><span class="toc-title">14. Services &amp; Dependencies</span><span class="toc-num">18</span></div>
+    <div class="toc-item"><span class="toc-title">15. Deployment Guide (Vercel)</span><span class="toc-num">19</span></div>
+  </div>
+</div>
+
+<!-- ===== SECTION 1: PROJECT OVERVIEW ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">1</span>Project Overview &amp; Goals</h2>
+
+  <p><strong>SplitEase</strong> is a full-stack web application inspired by Splitwise, built to solve the common problem of tracking shared expenses among friends, roommates, and travel groups. The goal was to create a free, modern, self-hostable alternative with a beautiful UI.</p>
+
+  <div class="callout callout-purple">
+    <strong>Core Problem Solved:</strong> When groups of people share expenses (trips, shared housing, dinners), tracking who paid what and who owes whom becomes complex and awkward. SplitEase automates the calculation and simplifies settlement.
+  </div>
+
+  <h3>Key Goals</h3>
+  <div class="card-grid">
+    <div class="card card-accent">
+      <h4>💸 Expense Tracking</h4>
+      <p>Log expenses in groups with payer tracking, categories, and date. Support equal splits across all members.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>⚖️ Smart Balances</h4>
+      <p>Automatically calculate net balances between all group members, simplifying complex webs of debt into minimum transactions.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>👥 Group Management</h4>
+      <p>Create named groups with custom emoji/colour, invite members by email, assign admin roles.</p>
+    </div>
+    <div class="card card-accent">
+      <h4>✅ Settle Up</h4>
+      <p>Record settlements that reduce balances. Full history of all settlements per group.</p>
+    </div>
+  </div>
+
+  <h2 class="section-title" style="margin-top:40px;"><span class="chapter-num">2</span>Feature List</h2>
+
+  <table>
+    <tr><th>Category</th><th>Feature</th><th>Status</th></tr>
+    <tr><td>Auth</td><td>Email + password sign up / sign in</td><td>✅ Done</td></tr>
+    <tr><td>Auth</td><td>Google OAuth sign in</td><td>✅ Done</td></tr>
+    <tr><td>Auth</td><td>JWT session management</td><td>✅ Done</td></tr>
+    <tr><td>Groups</td><td>Create group with name, emoji, colour, description</td><td>✅ Done</td></tr>
+    <tr><td>Groups</td><td>Invite members by email</td><td>✅ Done</td></tr>
+    <tr><td>Groups</td><td>Admin / member roles</td><td>✅ Done</td></tr>
+    <tr><td>Groups</td><td>Remove members</td><td>✅ Done</td></tr>
+    <tr><td>Expenses</td><td>Add expense with description, amount, category</td><td>✅ Done</td></tr>
+    <tr><td>Expenses</td><td>Choose who paid</td><td>✅ Done</td></tr>
+    <tr><td>Expenses</td><td>Equal split among all members</td><td>✅ Done</td></tr>
+    <tr><td>Expenses</td><td>9 expense categories with icons</td><td>✅ Done</td></tr>
+    <tr><td>Balances</td><td>Net balance calculation per group</td><td>✅ Done</td></tr>
+    <tr><td>Balances</td><td>Debt simplification algorithm</td><td>✅ Done</td></tr>
+    <tr><td>Settlements</td><td>Record settle-up payments</td><td>✅ Done</td></tr>
+    <tr><td>Settlements</td><td>Settlement history log</td><td>✅ Done</td></tr>
+    <tr><td>Friends</td><td>Send / accept / reject friend requests</td><td>✅ Done</td></tr>
+    <tr><td>Friends</td><td>Search users by name / email</td><td>✅ Done</td></tr>
+    <tr><td>Dashboard</td><td>Net balance across all groups</td><td>✅ Done</td></tr>
+    <tr><td>Dashboard</td><td>Recent activity feed</td><td>✅ Done</td></tr>
+    <tr><td>UI</td><td>Dark glassmorphism design</td><td>✅ Done</td></tr>
+    <tr><td>UI</td><td>Fully responsive (mobile + desktop)</td><td>✅ Done</td></tr>
+    <tr><td>UI</td><td>Animated transitions</td><td>✅ Done</td></tr>
+  </table>
+</div>
+
+<!-- ===== SECTION 3: TECH STACK ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">3</span>Tech Stack Summary</h2>
+
+  <table>
+    <tr><th>Layer</th><th>Technology</th><th>Version</th><th>Why Chosen</th></tr>
+    <tr><td><strong>Framework</strong></td><td>Next.js (App Router)</td><td>16.2.3</td><td>Full-stack in one repo. Server Components, Server Actions, API routes, file-based routing — eliminates need for separate backend.</td></tr>
+    <tr><td><strong>Language</strong></td><td>TypeScript</td><td>5.x</td><td>Type safety across frontend + backend prevents runtime bugs. Prisma generates fully-typed models.</td></tr>
+    <tr><td><strong>Styling</strong></td><td>Tailwind CSS</td><td>4.x</td><td>Utility-first, no context switching. v4 uses PostCSS and CSS variables natively — faster compile times.</td></tr>
+    <tr><td><strong>UI Components</strong></td><td>Radix UI</td><td>latest</td><td>Headless, accessible primitives (Dialog, Avatar, Tabs, etc.). We style them ourselves for full design control.</td></tr>
+    <tr><td><strong>Animations</strong></td><td>Framer Motion</td><td>12.x</td><td>Production-grade animations. Used for modal transitions and page elements.</td></tr>
+    <tr><td><strong>Icons</strong></td><td>Lucide React</td><td>latest</td><td>600+ consistent SVG icons as React components. Tree-shakeable.</td></tr>
+    <tr><td><strong>ORM</strong></td><td>Prisma</td><td>7.7.0</td><td>Type-safe DB queries. Auto-generates TypeScript types from schema. Supports migrations.</td></tr>
+    <tr><td><strong>Database</strong></td><td>SQLite (via libSQL)</td><td>—</td><td>Zero-config for local dev. libSQL adapter enables edge/serverless deployment (Turso).</td></tr>
+    <tr><td><strong>Auth</strong></td><td>NextAuth.js</td><td>v4</td><td>Handles sessions, JWT, OAuth providers, and the Prisma adapter out of the box.</td></tr>
+    <tr><td><strong>Password Hashing</strong></td><td>bcryptjs</td><td>3.x</td><td>Industry-standard bcrypt hashing — pure JS (no native addons), works everywhere.</td></tr>
+    <tr><td><strong>Validation</strong></td><td>Zod</td><td>4.x</td><td>Schema-based runtime validation. Integrates with react-hook-form resolvers.</td></tr>
+    <tr><td><strong>Forms</strong></td><td>react-hook-form</td><td>7.x</td><td>Performant form state management with minimal re-renders.</td></tr>
+    <tr><td><strong>Class Utilities</strong></td><td>clsx + tailwind-merge</td><td>latest</td><td>Cleanly merge conditional Tailwind classes. <code>cn()</code> utility used throughout.</td></tr>
+    <tr><td><strong>CVA</strong></td><td>class-variance-authority</td><td>0.7.x</td><td>Variant-based component styling (e.g. Button variants: default, outline, ghost).</td></tr>
+  </table>
+
+  <h3>Package Manager &amp; Tooling</h3>
+  <table>
+    <tr><th>Tool</th><th>Purpose</th></tr>
+    <tr><td>npm 11</td><td>Package manager (ships with Node 25)</td></tr>
+    <tr><td>Node.js 25</td><td>Runtime — installed via Homebrew</td></tr>
+    <tr><td>Turbopack</td><td>Next.js 16 built-in bundler for dev (replaces Webpack)</td></tr>
+    <tr><td>ESLint 9</td><td>Linting with next/eslint-config</td></tr>
+    <tr><td>Homebrew</td><td>macOS package manager used to install Node.js</td></tr>
+    <tr><td>Git</td><td>Version control (pre-installed on macOS via Xcode tools)</td></tr>
+  </table>
+</div>
+
+<!-- ===== SECTION 4: ARCHITECTURE ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">4</span>System Architecture</h2>
+
+  <h3>4.1 High-Level Architecture</h3>
+  <p>SplitEase is a <strong>monolithic full-stack app</strong> built on Next.js 16. There is no separate frontend and backend server — everything runs in a single Next.js process. The App Router architecture uses React Server Components for data fetching and Client Components for interactivity.</p>
+
+  <div class="callout callout-info">
+    <strong>Architecture Pattern:</strong> Server-Side Rendering (SSR) + Client Components + Route Handlers (API). Server Components fetch data directly from the database (no API call overhead). Client Components use fetch() to hit Route Handlers for mutations.
+  </div>
+
+  <pre>
+┌──────────────────────────────────────────────────────────────────┐
+│                        Browser (Client)                           │
+│   React Client Components  ──→  fetch("/api/...")  ──→  Server   │
+│   Server Components render HTML directly from DB                  │
+└──────────────────────────┬───────────────────────────────────────┘
+                            │ HTTP
+┌──────────────────────────▼───────────────────────────────────────┐
+│                    Next.js 16 App Router                          │
+│                                                                   │
+│  ┌─────────────────┐    ┌──────────────────┐    ┌─────────────┐  │
+│  │  Page / Layout  │    │   Route Handler   │    │   Proxy     │  │
+│  │  (RSC + Client) │    │   /api/...        │    │  (Auth Gate)│  │
+│  └────────┬────────┘    └────────┬─────────┘    └─────────────┘  │
+│           │                      │                                │
+│  ┌────────▼──────────────────────▼────────────────────────────┐  │
+│  │                    Auth Layer (NextAuth v4)                  │  │
+│  │         JWT Session  │  getServerSession()  │  Middleware    │  │
+│  └────────────────────────────┬───────────────────────────────┘  │
+│                                │                                   │
+│  ┌─────────────────────────────▼──────────────────────────────┐  │
+│  │                  Prisma ORM (v7)                             │  │
+│  │         Type-safe query builder  +  Migration engine         │  │
+│  └─────────────────────────────┬──────────────────────────────┘  │
+│                                │                                   │
+└────────────────────────────────┼───────────────────────────────── ┘
+                                 │
+┌────────────────────────────────▼──────────────┐
+│          SQLite Database (via libSQL)           │
+│          File: prisma/dev.db                    │
+└────────────────────────────────────────────────┘
+  </pre>
+
+  <h3>4.2 Request Flow</h3>
+
+  <h4>A — Page Load (Server Component)</h4>
+  <div class="flow">
+    <div class="flow-step">Browser request</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">proxy.ts checks JWT</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Next.js renders RSC</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Prisma queries DB</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">HTML sent to browser</div>
+  </div>
+
+  <h4>B — Client Mutation (e.g. Add Expense)</h4>
+  <div class="flow">
+    <div class="flow-step">User submits form</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">fetch POST /api/groups/[id]/expenses</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Route Handler validates session</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">Prisma creates Expense + Splits</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">JSON response → UI re-fetches</div>
+  </div>
+
+  <h4>C — Authentication Flow</h4>
+  <div class="flow">
+    <div class="flow-step">POST /api/auth/register</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">bcrypt.hash(password)</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">prisma.user.create()</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">signIn("credentials")</div>
+    <div class="flow-arrow">→</div>
+    <div class="flow-step">JWT issued → cookie set</div>
+  </div>
+
+  <h3>4.3 Folder Structure</h3>
+  <pre>
+splitwise-clone/
+├── prisma/
+│   ├── schema.prisma          # All DB models
+│   ├── dev.db                 # SQLite database file
+│   └── migrations/            # Prisma migration files
+├── prisma.config.ts           # Prisma 7 config (DB URL, migration path)
+├── src/
+│   ├── app/                   # Next.js App Router
+│   │   ├── layout.tsx         # Root layout (Providers, fonts)
+│   │   ├── page.tsx           # Landing page (/)
+│   │   ├── globals.css        # Tailwind + custom CSS
+│   │   ├── (auth)/            # Route group — no sidebar
+│   │   │   ├── layout.tsx     # Centered auth layout
+│   │   │   ├── signin/        # /signin page
+│   │   │   └── signup/        # /signup page
+│   │   ├── (dashboard)/       # Route group — with sidebar
+│   │   │   ├── layout.tsx     # Dashboard layout + auth guard
+│   │   │   ├── dashboard/     # /dashboard page (overview)
+│   │   │   ├── groups/        # /groups list page
+│   │   │   │   ├── new/       # /groups/new (create form)
+│   │   │   │   └── [id]/      # /groups/[id] (detail page)
+│   │   │   └── friends/       # /friends page
+│   │   └── api/               # API Route Handlers
+│   │       ├── auth/
+│   │       │   ├── [...nextauth]/  # NextAuth handler
+│   │       │   └── register/       # POST /api/auth/register
+│   │       ├── groups/             # GET, POST
+│   │       │   └── [id]/
+│   │       │       ├── route.ts    # GET, DELETE group
+│   │       │       ├── expenses/   # POST expense
+│   │       │       ├── members/    # POST, DELETE member
+│   │       │       ├── balances/   # GET balances
+│   │       │       └── settle/     # POST settlement
+│   │       ├── friends/            # GET, POST friends
+│   │       │   └── [id]/          # PATCH (accept/reject)
+│   │       └── users/search/       # GET search users
+│   ├── components/
+│   │   ├── providers.tsx      # SessionProvider wrapper
+│   │   ├── sidebar.tsx        # Desktop sidebar + mobile nav
+│   │   └── ui/                # Reusable UI components
+│   │       ├── button.tsx
+│   │       ├── input.tsx
+│   │       ├── card.tsx
+│   │       ├── avatar.tsx
+│   │       ├── dialog.tsx
+│   │       └── badge.tsx
+│   ├── lib/
+│   │   ├── prisma.ts          # Prisma client singleton
+│   │   ├── auth.ts            # NextAuth config + callbacks
+│   │   └── utils.ts           # cn(), formatCurrency(), etc.
+│   ├── types/
+│   │   └── next-auth.d.ts     # Session type augmentation (adds user.id)
+│   ├── generated/
+│   │   └── prisma/            # Auto-generated Prisma client (v7)
+│   └── proxy.ts               # Next.js 16 auth proxy / route guard
+├── .env                       # Environment variables
+├── next.config.ts             # Next.js configuration
+├── tsconfig.json              # TypeScript config
+└── package.json               # Dependencies
+  </pre>
+</div>
+
+<!-- ===== SECTION 5: DATABASE ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">5</span>Database Design</h2>
+
+  <h3>5.1 Overview</h3>
+  <p>The database uses <strong>SQLite</strong> accessed through the <strong>libSQL</strong> driver (compatible with Turso for production). Prisma 7 generates a fully type-safe client from the schema. The schema has 10 models covering users, authentication, groups, expenses, splits, settlements, and friendships.</p>
+
+  <div class="callout callout-success">
+    <strong>Why SQLite?</strong> Zero configuration for local development — no server to install. The libSQL adapter (Turso) makes it trivially upgradeable to a distributed cloud database when going to production.
+  </div>
+
+  <h3>5.2 Entity Relationship Diagram</h3>
+  <pre>
+User ─────────────────────────────────────────────────────────────
+ │ id, name, email, password, image                                │
+ │                                                                  │
+ ├──[creates]──→ Group                                              │
+ │                │ id, name, description, color, emoji             │
+ │                │                                                  │
+ │                ├──[has many]──→ GroupMember ←──[belongs to]──── ┘
+ │                │                  │ userId, role
+ │                │                  │
+ │                ├──[has many]──→ Expense
+ │                │                  │ description, amount, category
+ │                │                  │ paidById, splitType, date
+ │                │                  │
+ │                │                  └──[has many]──→ ExpenseSplit
+ │                │                                    │ userId, amount, paid
+ │                │
+ │                ├──[has many]──→ Settlement
+ │                │                  │ fromUserId, toUserId, amount
+ │                │
+ │                └──[has many]──→ Invitation
+ │                                   │ email, token, status
+ │
+ ├──[OAuth]──→ Account (NextAuth)
+ ├──[JWT]───→ Session (NextAuth)
+ │
+ └──[friends with]──→ Friend
+                         │ requesterId, addresseeId, status
+  </pre>
+
+  <h3>5.3 All Models Explained</h3>
+
+  <h4>User</h4>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>id</td><td>String (cuid)</td><td>Primary key — collision-safe unique ID</td></tr>
+    <tr><td>name</td><td>String?</td><td>Display name (optional for OAuth users)</td></tr>
+    <tr><td>email</td><td>String (unique)</td><td>Used for login and member invite</td></tr>
+    <tr><td>password</td><td>String?</td><td>bcrypt hash — null for OAuth-only users</td></tr>
+    <tr><td>image</td><td>String?</td><td>Profile photo URL (from Google OAuth)</td></tr>
+    <tr><td>emailVerified</td><td>DateTime?</td><td>Required by NextAuth Prisma Adapter</td></tr>
+  </table>
+
+  <h4>Group</h4>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>id</td><td>String (cuid)</td><td>Primary key</td></tr>
+    <tr><td>name</td><td>String</td><td>Group display name</td></tr>
+    <tr><td>description</td><td>String?</td><td>Optional description</td></tr>
+    <tr><td>color</td><td>String</td><td>Hex color for group card (default: #6366f1)</td></tr>
+    <tr><td>emoji</td><td>String</td><td>Emoji icon for group (default: 💰)</td></tr>
+    <tr><td>createdById</td><td>FK → User</td><td>The user who created the group</td></tr>
+  </table>
+
+  <h4>GroupMember</h4>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>groupId</td><td>FK → Group</td><td>Part of composite unique key</td></tr>
+    <tr><td>userId</td><td>FK → User</td><td>Part of composite unique key</td></tr>
+    <tr><td>role</td><td>String</td><td>ADMIN or MEMBER — controls permissions</td></tr>
+    <tr><td colspan="3"><em>@@unique([groupId, userId]) prevents duplicate membership</em></td></tr>
+  </table>
+
+  <h4>Expense</h4>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>description</td><td>String</td><td>What the expense was for</td></tr>
+    <tr><td>amount</td><td>Float</td><td>Total cost in the group's currency</td></tr>
+    <tr><td>category</td><td>String</td><td>food, transport, accommodation, etc.</td></tr>
+    <tr><td>paidById</td><td>FK → User</td><td>Who physically paid the bill</td></tr>
+    <tr><td>splitType</td><td>String</td><td>EQUAL, EXACT, or PERCENTAGE</td></tr>
+    <tr><td>date</td><td>DateTime</td><td>When the expense occurred</td></tr>
+    <tr><td>currency</td><td>String</td><td>ISO 4217 code (default: USD)</td></tr>
+  </table>
+
+  <h4>ExpenseSplit</h4>
+  <p>One record per person per expense. Tracks exactly how much each member owes for a given expense.</p>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+    <tr><td>expenseId</td><td>FK → Expense</td><td>Which expense this split belongs to</td></tr>
+    <tr><td>userId</td><td>FK → User</td><td>Which member this split is for</td></tr>
+    <tr><td>amount</td><td>Float</td><td>How much this member owes for this expense</td></tr>
+    <tr><td>paid</td><td>Boolean</td><td>True if this person was the payer (pre-marked paid)</td></tr>
+  </table>
+
+  <h4>Settlement</h4>
+  <p>Records a payment made between two members to clear a debt. Immutable — settlements are never deleted, they build up a history.</p>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>fromUserId</td><td>Person making the payment</td></tr>
+    <tr><td>toUserId</td><td>Person receiving the payment</td></tr>
+    <tr><td>amount</td><td>Amount settled</td></tr>
+    <tr><td>note</td><td>Optional memo (e.g. "via Venmo")</td></tr>
+  </table>
+
+  <h4>Friend</h4>
+  <table>
+    <tr><th>Field</th><th>Description</th></tr>
+    <tr><td>requesterId</td><td>User who sent the friend request</td></tr>
+    <tr><td>addresseeId</td><td>User who received the request</td></tr>
+    <tr><td>status</td><td>PENDING → ACCEPTED or REJECTED (deleted on reject)</td></tr>
+    <tr><td colspan="2"><em>@@unique([requesterId, addresseeId]) prevents duplicate requests</em></td></tr>
+  </table>
+
+  <h4>NextAuth Models (Account, Session, VerificationToken)</h4>
+  <p>These three models are required by the <code>@auth/prisma-adapter</code>. They handle OAuth token storage (Account), active sessions (Session), and email verification tokens (VerificationToken). You don't interact with them directly — NextAuth manages them automatically.</p>
+</div>
+
+<!-- ===== SECTION 6: AUTH ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">6</span>Authentication System</h2>
+
+  <h3>How It Works</h3>
+  <p>Authentication uses <strong>NextAuth v4</strong> with two providers: Credentials (email + password) and Google OAuth. Sessions are stored as signed <strong>JWT tokens</strong> in a cookie — no server-side session storage required.</p>
+
+  <h3>Credentials Provider Flow</h3>
+  <pre>
+1. User submits email + password to POST /api/auth/register
+   → bcrypt.hash(password, 12) — 12 rounds is OWASP recommended
+   → prisma.user.create({ email, hashedPassword })
+   → Returns user object (no password exposed)
+
+2. User signs in via signIn("credentials", { email, password })
+   → NextAuth calls authorize() callback
+   → prisma.user.findUnique({ where: { email } })
+   → bcrypt.compare(password, user.password)
+   → Returns user object → JWT issued with { id, email, name, image }
+
+3. JWT stored in httpOnly cookie (NEXTAUTH_SECRET signs it)
+   → Every request: proxy.ts calls getToken({ req }) to validate
+   → Server components: getServerSession(authOptions) returns user
+  </pre>
+
+  <h3>Session Type Augmentation</h3>
+  <p>NextAuth's default Session type doesn't include <code>user.id</code>. This is fixed in <code>src/types/next-auth.d.ts</code>:</p>
+  <pre>
+// src/types/next-auth.d.ts
+declare module "next-auth" {
+  interface Session {
+    user: { id: string } &amp; DefaultSession["user"]
+  }
+}
+
+// src/lib/auth.ts — jwt callback adds id to token
+async jwt({ token, user }) {
+  if (user) token.id = user.id
+  return token
+},
+// session callback puts it on the session object
+async session({ session, token }) {
+  if (token) session.user.id = token.id
+  return session
+}
+  </pre>
+
+  <h3>Route Protection — proxy.ts</h3>
+  <p>Next.js 16 renamed <code>middleware.ts</code> to <code>proxy.ts</code>. The proxy runs on every request before any page renders:</p>
+  <pre>
+// src/proxy.ts
+export async function proxy(req: NextRequest) {
+  const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
+
+  // Redirect logged-in users away from auth pages
+  if (token &amp;&amp; ["/", "/signin", "/signup"].includes(pathname))
+    return NextResponse.redirect(new URL("/dashboard", req.url))
+
+  // Redirect unauthenticated users to signin
+  if (!token &amp;&amp; !isPublicPath(pathname))
+    return NextResponse.redirect(new URL("/signin", req.url))
+}
+  </pre>
+
+  <div class="callout callout-warning">
+    <strong>Security Note:</strong> Every API Route Handler also independently calls <code>getServerSession(authOptions)</code> and returns 401 if no session. The proxy is a UX redirect layer — API security is never proxy-only.
+  </div>
+
+  <h3>Google OAuth Setup (optional)</h3>
+  <p>To enable Google sign-in, add to <code>.env</code>:</p>
+  <pre>
+GOOGLE_CLIENT_ID=your-google-client-id
+GOOGLE_CLIENT_SECRET=your-google-client-secret
+  </pre>
+  <p>Create credentials at: <code>console.cloud.google.com → APIs &amp; Services → Credentials → OAuth 2.0 Client</code>. Set redirect URI to <code>http://localhost:3000/api/auth/callback/google</code>.</p>
+</div>
+
+<!-- ===== SECTION 7: API ROUTES ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">7</span>API Routes Reference</h2>
+
+  <p>All API routes are Next.js Route Handlers located in <code>src/app/api/</code>. They use the Web <code>Request</code>/<code>Response</code> API and return JSON.</p>
+
+  <div class="callout callout-info">
+    <strong>Next.js 16 Breaking Change:</strong> Route handler <code>params</code> is now a <strong>Promise</strong>. You must <code>await params</code> before destructuring: <code>const { id } = await params</code>.
+  </div>
+
+  <h3>Authentication Routes</h3>
+  <div class="api-route"><span class="method post">POST</span>/api/auth/register — Create a new user account</div>
+  <table>
+    <tr><th>Field</th><th>Type</th><th>Notes</th></tr>
+    <tr><td>name</td><td>string</td><td>Required</td></tr>
+    <tr><td>email</td><td>string</td><td>Must be unique</td></tr>
+    <tr><td>password</td><td>string</td><td>Hashed with bcrypt (12 rounds)</td></tr>
+    <tr><td colspan="2"><strong>Returns</strong></td><td>201 { id, email, name } | 409 if email taken</td></tr>
+  </table>
+
+  <div class="api-route"><span class="method post">POST</span>/api/auth/[...nextauth] — NextAuth handler (sign in, sign out, session)</div>
+  <div class="api-route"><span class="method get">GET</span>&nbsp;/api/auth/[...nextauth] — Get current session</div>
+
+  <h3>Groups Routes</h3>
+  <div class="api-route"><span class="method get">GET</span>&nbsp;/api/groups — List all groups the current user belongs to</div>
+  <div class="api-route"><span class="method post">POST</span>/api/groups — Create a new group (auto-adds creator as ADMIN)</div>
+  <table>
+    <tr><th>Body Field</th><th>Description</th></tr>
+    <tr><td>name (required)</td><td>Group display name</td></tr>
+    <tr><td>description</td><td>Optional description</td></tr>
+    <tr><td>color</td><td>Hex color string (default: #6366f1)</td></tr>
+    <tr><td>emoji</td><td>Emoji character (default: 💰)</td></tr>
+  </table>
+
+  <div class="api-route"><span class="method get">GET</span>&nbsp;/api/groups/[id] — Get full group with members, expenses, settlements</div>
+  <div class="api-route"><span class="method delete">DELETE</span>/api/groups/[id] — Delete group (ADMIN only)</div>
+
+  <h3>Members Routes</h3>
+  <div class="api-route"><span class="method post">POST</span>/api/groups/[id]/members — Add member by email (user must already exist)</div>
+  <div class="api-route"><span class="method delete">DELETE</span>/api/groups/[id]/members — Remove a member (ADMIN or self)</div>
+
+  <h3>Expenses Routes</h3>
+  <div class="api-route"><span class="method post">POST</span>/api/groups/[id]/expenses — Add a new expense to the group</div>
+  <table>
+    <tr><th>Body Field</th><th>Description</th></tr>
+    <tr><td>description</td><td>What was the expense for</td></tr>
+    <tr><td>amount</td><td>Total amount (number)</td></tr>
+    <tr><td>category</td><td>food | transport | accommodation | entertainment | general | …</td></tr>
+    <tr><td>paidById</td><td>User ID of the person who paid</td></tr>
+    <tr><td>splitType</td><td>EQUAL | EXACT | PERCENTAGE</td></tr>
+    <tr><td>splits</td><td>Required for EXACT/PERCENTAGE — array of {userId, amount} or {userId, percentage}</td></tr>
+    <tr><td>date</td><td>ISO date string (defaults to now)</td></tr>
+  </table>
+
+  <h4>Split calculation logic (EQUAL):</h4>
+  <pre>
+const perPerson = totalAmount / groupMembers.length
+splits = groupMembers.map(m => ({
+  userId: m.userId,
+  amount: Math.round(perPerson * 100) / 100,  // avoid float precision bugs
+  paid: m.userId === paidById  // payer's split is pre-marked as paid
+}))
+  </pre>
+
+  <h3>Balances Route</h3>
+  <div class="api-route"><span class="method get">GET</span>&nbsp;/api/groups/[id]/balances — Calculate who owes whom in the group</div>
+  <p>Returns an array of <code>{ fromUser, toUser, amount }</code> objects representing simplified net debts. See Section 8 for the full algorithm.</p>
+
+  <h3>Settlements Route</h3>
+  <div class="api-route"><span class="method post">POST</span>/api/groups/[id]/settle — Record a payment between two members</div>
+  <table>
+    <tr><th>Body Field</th><th>Description</th></tr>
+    <tr><td>toUserId</td><td>User receiving the payment</td></tr>
+    <tr><td>amount</td><td>Amount paid</td></tr>
+    <tr><td>note</td><td>Optional memo</td></tr>
+  </table>
+
+  <h3>Friends Routes</h3>
+  <div class="api-route"><span class="method get">GET</span>&nbsp;/api/friends — List all friend relationships (accepted + pending)</div>
+  <div class="api-route"><span class="method post">POST</span>/api/friends — Send a friend request { addresseeId }</div>
+  <div class="api-route"><span class="method patch">PATCH</span>/api/friends/[id] — Accept or reject a request { action: "accept" | "reject" }</div>
+
+  <h3>Users Search Route</h3>
+  <div class="api-route"><span class="method get">GET</span>&nbsp;/api/users/search?q=query — Search users by name or email (min 2 chars)</div>
+  <p>Returns up to 10 users. Excludes the current user. Used for the Add Friend and Add Member flows.</p>
+</div>
+
+<!-- ===== SECTION 8: BALANCE CALCULATION ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">8</span>Business Logic — Balance Calculation</h2>
+
+  <p>The balance calculation is the core algorithm of the app. It lives in <code>GET /api/groups/[id]/balances</code>.</p>
+
+  <h3>Step 1 — Build Raw Debt Map</h3>
+  <p>For every <strong>ExpenseSplit</strong> where the split owner ≠ payer and <code>paid = false</code>:</p>
+  <pre>
+balances[split.userId][expense.paidById] += split.amount
+// e.g. Alice paid $60 dinner, 3-way split:
+// Bob owes Alice $20 → balances["bob"]["alice"] += 20
+// Carol owes Alice $20 → balances["carol"]["alice"] += 20
+  </pre>
+
+  <h3>Step 2 — Apply Settlements</h3>
+  <p>For every Settlement record, subtract from the debtor's balance:</p>
+  <pre>
+balances[settlement.fromUserId][settlement.toUserId] =
+  Math.max(0, existing - settlement.amount)
+  </pre>
+
+  <h3>Step 3 — Simplify Mutual Debts</h3>
+  <p>If A owes B $30 AND B owes A $20, the net result is A owes B $10 only:</p>
+  <pre>
+for each pair (A, B):
+  net = balances[A][B] - balances[B][A]
+  if net &gt; 0.01:   emit { fromUser: A, toUser: B, amount: net }
+  if net &lt; -0.01:  emit { fromUser: B, toUser: A, amount: -net }
+  </pre>
+
+  <div class="callout callout-success">
+    <strong>Result:</strong> The minimum number of transactions needed to settle all debts. A group of 10 people with 50 expenses might need only 5-8 payments to fully clear all balances.
+  </div>
+
+  <h3>Dashboard Balance (Across All Groups)</h3>
+  <p>The dashboard calculates <code>totalOwed</code> (others owe me) and <code>totalOwe</code> (I owe others) by scanning all expenses in all groups the user belongs to:</p>
+  <pre>
+if expense.paidById === myId:
+  for each split where split.userId !== myId and !split.paid:
+    totalOwed += split.amount
+
+if expense.paidById !== myId:
+  mySplit = expense.splits.find(s =&gt; s.userId === myId)
+  if mySplit and !mySplit.paid:
+    totalOwe += mySplit.amount
+
+// Subtract confirmed settlements
+netBalance = totalOwed - totalOwe
+  </pre>
+</div>
+
+<!-- ===== SECTION 9: FRONTEND ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">9</span>Pages &amp; Components</h2>
+
+  <h3>Page Inventory</h3>
+  <table>
+    <tr><th>Route</th><th>File</th><th>Type</th><th>Description</th></tr>
+    <tr><td>/</td><td>app/page.tsx</td><td>Static</td><td>Landing page — hero, feature highlights, mock dashboard preview, stats, CTA</td></tr>
+    <tr><td>/signin</td><td>app/(auth)/signin/page.tsx</td><td>Client</td><td>Email/password login form + Google OAuth button</td></tr>
+    <tr><td>/signup</td><td>app/(auth)/signup/page.tsx</td><td>Client</td><td>Registration form with password strength indicator</td></tr>
+    <tr><td>/dashboard</td><td>app/(dashboard)/dashboard/page.tsx</td><td>Server</td><td>Net balance cards, recent expenses, groups overview</td></tr>
+    <tr><td>/groups</td><td>app/(dashboard)/groups/page.tsx</td><td>Server</td><td>Grid of all groups with balance and member count</td></tr>
+    <tr><td>/groups/new</td><td>app/(dashboard)/groups/new/page.tsx</td><td>Client</td><td>Create group form with emoji/colour picker</td></tr>
+    <tr><td>/groups/[id]</td><td>app/(dashboard)/groups/[id]/page.tsx</td><td>Client</td><td>Group detail — expenses, balances, members tabs</td></tr>
+    <tr><td>/friends</td><td>app/(dashboard)/friends/page.tsx</td><td>Client</td><td>Friend search, pending requests, friends list</td></tr>
+  </table>
+
+  <h3>Layout Hierarchy</h3>
+  <pre>
+app/layout.tsx (Root)
+  └── Providers (SessionProvider)
+       ├── (auth)/layout.tsx  — Centered card, gradient background
+       │    ├── /signin
+       │    └── /signup
+       └── (dashboard)/layout.tsx  — Auth guard + Sidebar + MobileNav
+            ├── /dashboard
+            ├── /groups
+            ├── /groups/new
+            ├── /groups/[id]
+            └── /friends
+  </pre>
+
+  <div class="callout callout-info">
+    <strong>Route Groups:</strong> <code>(auth)</code> and <code>(dashboard)</code> are Next.js route groups — the parentheses mean they don't appear in the URL. They exist purely to apply different layouts.
+  </div>
+
+  <h3>Group Detail Page Architecture</h3>
+  <p>This is the most complex page. It's a <strong>Client Component</strong> that manages its own state and makes API calls. It has three tabs:</p>
+
+  <table>
+    <tr><th>Tab</th><th>Data Source</th><th>Key Logic</th></tr>
+    <tr><td>Expenses</td><td>GET /api/groups/[id]</td><td>Shows net amount per person (you paid → green, you owe → red)</td></tr>
+    <tr><td>Balances</td><td>GET /api/groups/[id]/balances</td><td>Simplified debt list. "Settle up" button triggers settlement dialog</td></tr>
+    <tr><td>Members</td><td>GET /api/groups/[id]</td><td>List with roles, add member button</td></tr>
+  </table>
+
+  <p>Three modal dialogs are embedded:</p>
+  <ul>
+    <li><strong>Add Expense dialog</strong> — description, amount, category picker, payer selector</li>
+    <li><strong>Add Member dialog</strong> — email input, server-validates user exists</li>
+    <li><strong>Settle Up dialog</strong> — confirms amount, optional note</li>
+  </ul>
+</div>
+
+<!-- ===== SECTION 10: UI COMPONENTS ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">10</span>UI Component Library</h2>
+
+  <p>All components live in <code>src/components/ui/</code>. They are custom-built (not from shadcn/ui) but use Radix UI primitives for accessibility.</p>
+
+  <h3>Component Reference</h3>
+
+  <h4>Button (<code>button.tsx</code>)</h4>
+  <p>Built with <code>class-variance-authority</code> for variant support. Supports <code>loading</code> prop which shows a spinner and disables the button.</p>
+  <table>
+    <tr><th>Variant</th><th>Use case</th></tr>
+    <tr><td>default</td><td>Primary action — indigo to purple gradient</td></tr>
+    <tr><td>destructive</td><td>Delete / dangerous actions — rose gradient</td></tr>
+    <tr><td>outline</td><td>Secondary action — glass border</td></tr>
+    <tr><td>ghost</td><td>Tertiary / nav items</td></tr>
+    <tr><td>success</td><td>Settle up / confirm — emerald gradient</td></tr>
+    <tr><td>link</td><td>Inline text links</td></tr>
+  </table>
+  <table>
+    <tr><th>Size</th><th>Height</th></tr>
+    <tr><td>sm</td><td>h-8 (32px)</td></tr>
+    <tr><td>default</td><td>h-10 (40px)</td></tr>
+    <tr><td>lg</td><td>h-12 (48px)</td></tr>
+    <tr><td>xl</td><td>h-14 (56px) — landing page CTAs</td></tr>
+    <tr><td>icon</td><td>h-10 w-10 — square icon buttons</td></tr>
+  </table>
+
+  <h4>Input (<code>input.tsx</code>)</h4>
+  <p>Extends HTML input with <code>icon</code> (left-side icon), <code>error</code> (red border + message) props. Glassmorphic dark styling with focus ring.</p>
+
+  <h4>Card (<code>card.tsx</code>)</h4>
+  <p>Five sub-components: <code>Card</code>, <code>CardHeader</code>, <code>CardTitle</code>, <code>CardDescription</code>, <code>CardContent</code>, <code>CardFooter</code>. Rounded-2xl, glass border, backdrop blur.</p>
+
+  <h4>Avatar (<code>avatar.tsx</code>)</h4>
+  <p>Wraps Radix Avatar. Fallback shows initials on an indigo-to-purple gradient background. Extracted via <code>getInitials(name, email)</code> utility.</p>
+
+  <h4>Dialog (<code>dialog.tsx</code>)</h4>
+  <p>Full-screen modal overlay. Slate-900 background, rounded-2xl, close button, enter/exit animations using Radix data attributes + Tailwind animate classes.</p>
+
+  <h4>Badge (<code>badge.tsx</code>)</h4>
+  <p>Pill-shaped label. Variants: default (indigo), secondary (grey), destructive (rose), success (emerald), warning (amber), outline.</p>
+
+  <h3>Design System</h3>
+  <table>
+    <tr><th>Token</th><th>Value</th><th>Used For</th></tr>
+    <tr><td>Background</td><td>#0a0a1a</td><td>Page background</td></tr>
+    <tr><td>Primary</td><td>#6366f1 (indigo-500)</td><td>Buttons, focus rings, active nav</td></tr>
+    <tr><td>Accent</td><td>#a855f7 (purple-500)</td><td>Gradient end, logo</td></tr>
+    <tr><td>Success</td><td>#22c55e (emerald-500)</td><td>Positive balances, settle button</td></tr>
+    <tr><td>Danger</td><td>#f43f5e (rose-500)</td><td>Negative balances, delete</td></tr>
+    <tr><td>Text primary</td><td>#f1f5f9 (slate-100)</td><td>Headings, important text</td></tr>
+    <tr><td>Text secondary</td><td>#94a3b8 (slate-400)</td><td>Labels, descriptions</td></tr>
+    <tr><td>Border</td><td>rgba(255,255,255,0.1)</td><td>Card borders, dividers</td></tr>
+    <tr><td>Glass bg</td><td>rgba(255,255,255,0.05)</td><td>Cards, inputs, nav</td></tr>
+    <tr><td>Border radius</td><td>rounded-xl (12px) / rounded-2xl (16px)</td><td>Cards, buttons, inputs</td></tr>
+  </table>
+
+  <h3>Utility Functions (<code>lib/utils.ts</code>)</h3>
+  <table>
+    <tr><th>Function</th><th>Purpose</th></tr>
+    <tr><td>cn(...classes)</td><td>Merge Tailwind classes safely (clsx + tailwind-merge)</td></tr>
+    <tr><td>formatCurrency(amount, currency)</td><td>Intl.NumberFormat — "USD $42.50"</td></tr>
+    <tr><td>getInitials(name, email)</td><td>Returns "JD" from "John Doe" or "J" from email</td></tr>
+    <tr><td>formatDate(date)</td><td>"Apr 14, 2025" via Intl.DateTimeFormat</td></tr>
+    <tr><td>formatRelativeTime(date)</td><td>"2h ago", "3d ago", falls back to formatDate</td></tr>
+    <tr><td>CATEGORY_ICONS</td><td>Map of category → emoji: food→🍔, travel→✈️, etc.</td></tr>
+    <tr><td>GROUP_EMOJIS</td><td>Array of 10 selectable group emoji</td></tr>
+    <tr><td>GROUP_COLORS</td><td>Array of 10 selectable hex colors</td></tr>
+  </table>
+</div>
+
+<!-- ===== SECTION 11: ROUTING ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">11</span>Routing &amp; Navigation</h2>
+
+  <h3>Sidebar (Desktop)</h3>
+  <p>The <code>Sidebar</code> component is a <strong>Client Component</strong> (uses <code>usePathname()</code> for active state and <code>useSession()</code> for the user card). It renders on all <code>(dashboard)</code> routes. Features:</p>
+  <ul>
+    <li>SplitEase logo and branding</li>
+    <li>New Group quick-action button</li>
+    <li>Three nav items: Dashboard, Groups, Friends (with active state highlight)</li>
+    <li>User avatar + name + email at bottom</li>
+    <li>Sign out button (calls <code>signOut({ callbackUrl: "/" })</code>)</li>
+  </ul>
+
+  <h3>Mobile Navigation</h3>
+  <p>The <code>MobileNav</code> component renders as a fixed bottom tab bar on screens under <code>md</code> breakpoint (768px). Shows icon + label for Dashboard, Groups, Friends, and New group.</p>
+
+  <h3>Navigation Guard</h3>
+  <p>Two layers of protection:</p>
+  <ol>
+    <li><strong>proxy.ts</strong> — Edge-level check using <code>getToken()</code>. Redirects unauthenticated requests to <code>/signin</code> before the page even renders.</li>
+    <li><strong>Dashboard layout</strong> — Server-side <code>getServerSession()</code> check with <code>redirect("/signin")</code> as a fallback in case proxy is bypassed.</li>
+  </ol>
+</div>
+
+<!-- ===== SECTION 12–15: BUILD & DEPLOY ===== -->
+<div class="section">
+  <h2 class="section-title"><span class="chapter-num">12</span>Environment Variables</h2>
+
+  <p>All environment variables go in <code>.env</code> at the project root. <strong>Never commit this file.</strong></p>
+
+  <table>
+    <tr><th>Variable</th><th>Required</th><th>Description</th></tr>
+    <tr><td>DATABASE_URL</td><td>Yes</td><td><code>file:./prisma/dev.db</code> for local SQLite. Change to Turso URL for production.</td></tr>
+    <tr><td>NEXTAUTH_SECRET</td><td>Yes</td><td>Random string used to sign JWTs. Generate with: <code>openssl rand -base64 32</code></td></tr>
+    <tr><td>NEXTAUTH_URL</td><td>Yes</td><td><code>http://localhost:3000</code> locally. Your production domain in prod.</td></tr>
+    <tr><td>GOOGLE_CLIENT_ID</td><td>Optional</td><td>From Google Cloud Console — enables Google OAuth login</td></tr>
+    <tr><td>GOOGLE_CLIENT_SECRET</td><td>Optional</td><td>From Google Cloud Console</td></tr>
+  </table>
+
+  <h2 class="section-title" style="margin-top:40px;"><span class="chapter-num">13</span>Build Setup &amp; Commands</h2>
+
+  <h3>Prerequisites</h3>
+  <table>
+    <tr><th>Requirement</th><th>Version</th><th>How to Install</th></tr>
+    <tr><td>Node.js</td><td>≥ 18 (used 25)</td><td><code>brew install node</code></td></tr>
+    <tr><td>npm</td><td>≥ 9 (used 11)</td><td>Ships with Node.js</td></tr>
+    <tr><td>Git</td><td>any</td><td>Pre-installed on macOS</td></tr>
+  </table>
+
+  <h3>Commands</h3>
+  <table>
+    <tr><th>Command</th><th>What it does</th></tr>
+    <tr><td><code>npm install</code></td><td>Install all dependencies from package.json</td></tr>
+    <tr><td><code>npx prisma db push</code></td><td>Sync schema to DB without migrations (dev only). Creates <code>dev.db</code> if missing.</td></tr>
+    <tr><td><code>npx prisma generate</code></td><td>Regenerate the Prisma client after schema changes. Output: <code>src/generated/prisma/</code></td></tr>
+    <tr><td><code>npm run dev</code></td><td>Start dev server with Turbopack on <code>http://localhost:3000</code></td></tr>
+    <tr><td><code>npm run build</code></td><td>Production build (type-checks, compiles, optimises)</td></tr>
+    <tr><td><code>npm run start</code></td><td>Serve the production build</td></tr>
+    <tr><td><code>npm run lint</code></td><td>Run ESLint checks</td></tr>
+  </table>
+
+  <h3>Fresh Setup (from scratch)</h3>
+  <pre>
+# 1. Clone / navigate to project
+cd splitwise-clone
+
+# 2. Install dependencies
+npm install
+
+# 3. Configure environment
+cp .env.example .env
+# Edit .env — set NEXTAUTH_SECRET and DATABASE_URL
+
+# 4. Create database and tables
+npx prisma db push
+
+# 5. Generate Prisma client
+npx prisma generate
+
+# 6. Start development server
+npm run dev
+# Open http://localhost:3000
+  </pre>
+
+  <h2 class="section-title" style="margin-top:40px;"><span class="chapter-num">14</span>Services &amp; Dependencies Explained</h2>
+
+  <table>
+    <tr><th>Package</th><th>Version</th><th>Role</th><th>Why It Matters</th></tr>
+    <tr><td>next</td><td>16.2.3</td><td>Core framework</td><td>App Router, RSC, Route Handlers, Turbopack bundler</td></tr>
+    <tr><td>react / react-dom</td><td>19.2.4</td><td>UI runtime</td><td>Server + Client Components, hooks, transitions</td></tr>
+    <tr><td>prisma</td><td>7.7.0</td><td>ORM CLI</td><td>Schema management, db push, migrations, client generation</td></tr>
+    <tr><td>@prisma/client</td><td>7.7.0</td><td>DB query client</td><td>Type-safe database access. In v7, requires a driver adapter.</td></tr>
+    <tr><td>@prisma/adapter-libsql</td><td>7.7.0</td><td>DB adapter</td><td>Connects Prisma to libSQL/SQLite. Needed in Prisma 7 — the old direct connection is deprecated.</td></tr>
+    <tr><td>@libsql/client</td><td>latest</td><td>SQLite driver</td><td>Pure-JS SQLite client that works in Node.js and edge runtimes. Compatible with Turso cloud.</td></tr>
+    <tr><td>next-auth</td><td>4.24.x</td><td>Authentication</td><td>Handles OAuth, credentials, JWT sessions, and CSRF protection out of the box.</td></tr>
+    <tr><td>@auth/prisma-adapter</td><td>2.x</td><td>Auth ↔ DB bridge</td><td>Tells NextAuth to store sessions/accounts in our Prisma database.</td></tr>
+    <tr><td>bcryptjs</td><td>3.x</td><td>Password hashing</td><td>Pure JS bcrypt — no native build required. 12 rounds ≈ OWASP recommendation.</td></tr>
+    <tr><td>tailwindcss</td><td>4.x</td><td>CSS framework</td><td>v4 uses a new CSS-first config system. No tailwind.config.js needed — config lives in globals.css.</td></tr>
+    <tr><td>@tailwindcss/postcss</td><td>4.x</td><td>PostCSS plugin</td><td>Required by Tailwind v4 to process CSS during the build.</td></tr>
+    <tr><td>@radix-ui/*</td><td>latest</td><td>Accessible primitives</td><td>Headless components (Dialog, Avatar, Tabs, etc.) with full keyboard/ARIA support.</td></tr>
+    <tr><td>framer-motion</td><td>12.x</td><td>Animations</td><td>Dialog open/close animations, hover effects, layout transitions.</td></tr>
+    <tr><td>lucide-react</td><td>latest</td><td>Icons</td><td>600+ SVG icons as React components. Individual imports keep bundle small.</td></tr>
+    <tr><td>class-variance-authority</td><td>0.7.x</td><td>Component variants</td><td>Type-safe variant definition for Button (default, outline, destructive, etc.).</td></tr>
+    <tr><td>clsx</td><td>2.x</td><td>Class merging</td><td>Conditionally apply class strings without string concat mess.</td></tr>
+    <tr><td>tailwind-merge</td><td>3.x</td><td>Class conflict resolution</td><td>Merges Tailwind classes intelligently (e.g. last <code>bg-*</code> wins).</td></tr>
+    <tr><td>zod</td><td>4.x</td><td>Schema validation</td><td>Runtime type checking for API inputs and form data.</td></tr>
+    <tr><td>react-hook-form</td><td>7.x</td><td>Form state</td><td>Performant forms with minimal re-renders. Used with Zod resolver.</td></tr>
+    <tr><td>dotenv</td><td>17.x</td><td>Env loading</td><td>Required by <code>prisma.config.ts</code> to load <code>.env</code> before Prisma CLI runs.</td></tr>
+    <tr><td>nodemailer</td><td>7.x</td><td>Email (future)</td><td>Installed for future invite email functionality.</td></tr>
+  </table>
+
+  <h2 class="section-title" style="margin-top:40px;"><span class="chapter-num">15</span>Deployment Guide (Vercel)</h2>
+
+  <div class="callout callout-info">
+    <strong>Recommended:</strong> Deploy to Vercel (built by the Next.js team) + Turso (managed libSQL database). Both have generous free tiers.
+  </div>
+
+  <h3>Step 1 — Set up Turso database</h3>
+  <pre>
+# Install Turso CLI
+brew install tursodatabase/tap/turso
+
+# Sign in / sign up
+turso auth login
+
+# Create a database
+turso db create splitease-prod
+
+# Get the connection URL and auth token
+turso db show splitease-prod --url
+turso db tokens create splitease-prod
+  </pre>
+
+  <h3>Step 2 — Update schema for Turso</h3>
+  <p>Turso uses libSQL which is SQLite-compatible. Update <code>.env</code> (production):</p>
+  <pre>
+DATABASE_URL=libsql://splitease-prod-[your-org].turso.io
+TURSO_AUTH_TOKEN=your-token-here
+  </pre>
+  <p>Update <code>src/lib/prisma.ts</code> to use the auth token for production:</p>
+  <pre>
+const adapter = new PrismaLibSql({
+  url: process.env.DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN,
+})
+  </pre>
+
+  <h3>Step 3 — Deploy to Vercel</h3>
+  <pre>
+# Install Vercel CLI
+npm install -g vercel
+
+# Deploy (follow prompts)
+vercel
+
+# Set production environment variables
+vercel env add DATABASE_URL
+vercel env add TURSO_AUTH_TOKEN
+vercel env add NEXTAUTH_SECRET
+vercel env add NEXTAUTH_URL         # Set to https://your-app.vercel.app
+vercel env add GOOGLE_CLIENT_ID     # If using Google OAuth
+vercel env add GOOGLE_CLIENT_SECRET
+
+# Deploy to production
+vercel --prod
+  </pre>
+
+  <h3>Step 4 — Run migrations on production DB</h3>
+  <pre>
+# Point CLI at production DB temporarily
+DATABASE_URL=libsql://... npx prisma db push
+  </pre>
+
+  <h3>Alternative: Self-hosted with Docker</h3>
+  <pre>
+# Build Docker image
+docker build -t splitease .
+
+# Run with SQLite (volume-mounted)
+docker run -p 3000:3000 \
+  -e NEXTAUTH_SECRET=your-secret \
+  -e DATABASE_URL=file:/data/prod.db \
+  -v splitease-data:/data \
+  splitease
+  </pre>
+
+  <h3>Production Checklist</h3>
+  <table>
+    <tr><th>Item</th><th>Status</th></tr>
+    <tr><td>Generate strong NEXTAUTH_SECRET (<code>openssl rand -base64 32</code>)</td><td>⬜</td></tr>
+    <tr><td>Set NEXTAUTH_URL to production domain</td><td>⬜</td></tr>
+    <tr><td>Switch DATABASE_URL to Turso/PostgreSQL</td><td>⬜</td></tr>
+    <tr><td>Update Google OAuth redirect URI to production URL</td><td>⬜</td></tr>
+    <tr><td>Run <code>prisma db push</code> on production database</td><td>⬜</td></tr>
+    <tr><td>Enable HTTPS (automatic on Vercel)</td><td>⬜</td></tr>
+    <tr><td>Test sign up, group creation, expense, settle flow end-to-end</td><td>⬜</td></tr>
+  </table>
+
+  <div class="divider"></div>
+  <p style="text-align:center; color:#94a3b8; font-size:12px; margin-top:32px;">
+    SplitEase Technical Documentation — v1.0.0<br/>
+    Built with Next.js 16, Prisma 7, NextAuth v4, Tailwind CSS 4, SQLite (libSQL)
+  </p>
+</div>
+
+</body>
+</html>
