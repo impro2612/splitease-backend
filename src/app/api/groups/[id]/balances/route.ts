@@ -54,7 +54,13 @@ export async function GET(
   }
 
   // Simplify: net out mutual debts
-  const netBalances: { fromUser: any; toUser: any; amount: number }[] = []
+  const netBalances: {
+    fromUserId: string
+    toUserId: string
+    fromUser: any
+    toUser: any
+    amount: number
+  }[] = []
   const memberMap = Object.fromEntries(members.map((m) => [m.userId, m.user]))
 
   const processed = new Set<string>()
@@ -69,12 +75,16 @@ export async function GET(
 
       if (net > 0.01) {
         netBalances.push({
+          fromUserId: fromId,
+          toUserId: toId,
           fromUser: memberMap[fromId],
           toUser: memberMap[toId],
           amount: Math.round(net * 100) / 100,
         })
       } else if (net < -0.01) {
         netBalances.push({
+          fromUserId: toId,
+          toUserId: fromId,
           fromUser: memberMap[toId],
           toUser: memberMap[fromId],
           amount: Math.round(-net * 100) / 100,

@@ -10,7 +10,15 @@ export async function GET(req: NextRequest) {
     where: { members: { some: { userId: user.id } } },
     include: {
       members: { include: { user: { select: { id: true, name: true, email: true, image: true } } } },
-      expenses: { orderBy: { createdAt: "desc" }, take: 1 },
+      expenses: {
+        include: {
+          paidBy: { select: { id: true, name: true, email: true, image: true } },
+          splits: {
+            include: { user: { select: { id: true, name: true, email: true, image: true } } },
+          },
+        },
+        orderBy: { createdAt: "desc" },
+      },
       _count: { select: { expenses: true } },
     },
     orderBy: { updatedAt: "desc" },
