@@ -9,6 +9,12 @@ export async function proxy(req: NextRequest) {
   const publicPaths = ["/", "/signin", "/signup"]
   const isPublic = publicPaths.includes(pathname) || pathname.startsWith("/api/auth")
 
+  // API routes handle their own auth (Bearer JWT for mobile, session for web).
+  // Never redirect API calls — they must return JSON, not an HTML signin page.
+  if (pathname.startsWith("/api/")) {
+    return NextResponse.next()
+  }
+
   // Redirect authenticated users away from auth pages
   if (token && (pathname === "/signin" || pathname === "/signup" || pathname === "/")) {
     return NextResponse.redirect(new URL("/dashboard", req.url))
