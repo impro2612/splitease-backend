@@ -8,6 +8,12 @@ const SECRET = new TextEncoder().encode(
   process.env.NEXTAUTH_SECRET ?? "fallback-secret-change-in-production"
 )
 
+// Lightweight warm-up ping — mobile app calls this on the login screen so the
+// serverless function is already running by the time the user hits Sign In.
+export async function GET() {
+  return Response.json({ ok: true })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { email, password } = await req.json()
