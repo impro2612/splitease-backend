@@ -30,7 +30,6 @@ export async function GET(req: NextRequest) {
   const balances: Record<string, Record<string, number>> = {}
   const init = (a: string, b: string) => {
     if (!balances[a]) balances[a] = {}
-    if (!balances[a][b] === undefined) balances[a][b] = 0
     if (balances[a][b] === undefined) balances[a][b] = 0
   }
 
