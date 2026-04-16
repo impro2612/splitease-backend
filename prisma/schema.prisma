@@ -12,6 +12,7 @@ model User {
   name          String?
   email         String    @unique
   phone         String?   @unique
+  pushToken     String?
   emailVerified DateTime?
   password      String?
   image         String?

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { sendPushNotification } from "@/lib/push"
 
 export async function POST(
   req: NextRequest,
@@ -60,6 +61,21 @@ export async function POST(
           data: { requesterId: em.userId, addresseeId: user.id, status: "ACCEPTED" },
         })
       }
+    }
+
+    // Send push notification to the newly added member
+    const [newMemberWithToken, group, adder] = await Promise.all([
+      prisma.user.findUnique({ where: { id: user.id }, select: { pushToken: true } }),
+      prisma.group.findUnique({ where: { id: groupId }, select: { name: true, emoji: true } }),
+      prisma.user.findUnique({ where: { id: admin.userId }, select: { name: true } }),
+    ])
+    if (newMemberWithToken?.pushToken && group) {
+      await sendPushNotification(
+        newMemberWithToken.pushToken,
+        `${group.emoji} Added to ${group.name}`,
+        `${adder?.name ?? "Someone"} added you to "${group.name}". Open SplitEase to view it.`,
+        { groupId }
+      )
     }
 
     return Response.json(member, { status: 201 })
