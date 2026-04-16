@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const { name, description, color, emoji } = await req.json()
+    const { name, description, color, emoji, currency } = await req.json()
 
     if (!name?.trim()) return Response.json({ error: "Name is required" }, { status: 400 })
 
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
         description: description?.trim(),
         color: color ?? "#6366f1",
         emoji: emoji ?? "💰",
+        currency: currency ?? "USD",
         createdById: user.id,
         members: { create: { userId: user.id, role: "ADMIN" } },
       },
