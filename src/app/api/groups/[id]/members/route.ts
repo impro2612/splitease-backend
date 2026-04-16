@@ -40,6 +40,28 @@ export async function POST(
 
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
 
+    // Auto-create ACCEPTED friendships between the new member and all existing group members
+    const existingMembers = await prisma.groupMember.findMany({
+      where: { groupId, userId: { not: user.id } },
+      select: { userId: true },
+    })
+
+    for (const em of existingMembers) {
+      const alreadyFriends = await prisma.friend.findFirst({
+        where: {
+          OR: [
+            { requesterId: em.userId, addresseeId: user.id },
+            { requesterId: user.id, addresseeId: em.userId },
+          ],
+        },
+      })
+      if (!alreadyFriends) {
+        await prisma.friend.create({
+          data: { requesterId: em.userId, addresseeId: user.id, status: "ACCEPTED" },
+        })
+      }
+    }
+
     return Response.json(member, { status: 201 })
   } catch (err) {
     console.error(err)
