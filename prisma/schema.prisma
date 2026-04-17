@@ -31,6 +31,8 @@ model User {
   receivedFriendRequests Friend[]     @relation("FriendAddressee")
   sentInvitations       Invitation[]  @relation("InvitedBy")
   createdGroups         Group[]
+  sentMessages          Message[]     @relation("SentMessages")
+  receivedMessages      Message[]     @relation("ReceivedMessages")
 }
 
 model Account {
@@ -112,7 +114,7 @@ model Expense {
   id          String   @id @default(cuid())
   groupId     String
   description String
-  amount      Float
+  amount      Int      // stored in cents (e.g. $33.33 → 3333)
   currency    String   @default("USD")
   splitType   String   @default("EQUAL")
   paidById    String
@@ -132,7 +134,7 @@ model ExpenseSplit {
   id        String  @id @default(cuid())
   expenseId String
   userId    String
-  amount    Float
+  amount    Int     // stored in cents
   paid      Boolean @default(false)
 
   expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
@@ -146,7 +148,7 @@ model Settlement {
   groupId    String
   fromUserId String
   toUserId   String
-  amount     Float
+  amount     Int      // stored in cents
   note       String?
   createdAt  DateTime @default(now())
 
@@ -166,6 +168,22 @@ model Friend {
   addressee User @relation("FriendAddressee", fields: [addresseeId], references: [id])
 
   @@unique([requesterId, addresseeId])
+}
+
+model Message {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  content    String   // AES-encrypted on client
+  clientId   String   @unique // client-generated UUID for deduplication
+  read       Boolean  @default(false)
+  deleted    Boolean  @default(false)
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedMessages", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([senderId, receiverId, createdAt])
 }
 
 model Invitation {

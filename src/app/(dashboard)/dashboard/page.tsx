@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { buildBalanceMap, getUserTotals, centsToDisplay } from "@/lib/balance"
 import Link from "next/link"
 import { Plus, TrendingUp, TrendingDown, Users, Receipt, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -43,36 +44,21 @@ async function getDashboardData(userId: string) {
     }),
   ])
 
-  // Calculate net balances
-  let totalOwed = 0 // others owe me
-  let totalOwe = 0  // I owe others
+  // Calculate net balances using the shared balance engine
+  const [allExpenses, allSettlements] = await Promise.all([
+    prisma.expense.findMany({
+      where: { group: { members: { some: { userId } } } },
+      include: { splits: true },
+    }),
+    prisma.settlement.findMany({
+      where: { group: { members: { some: { userId } } } },
+    }),
+  ])
 
-  for (const expense of await prisma.expense.findMany({
-    where: { group: { members: { some: { userId } } } },
-    include: { splits: true },
-  })) {
-    const mySplit = expense.splits.find((s) => s.userId === userId)
-    if (!mySplit) continue
-
-    if (expense.paidById === userId) {
-      // I paid — others owe me their splits
-      for (const split of expense.splits) {
-        if (split.userId !== userId && !split.paid) {
-          totalOwed += split.amount
-        }
-      }
-    } else if (!mySplit.paid) {
-      totalOwe += mySplit.amount
-    }
-  }
-
-  // Subtract settled amounts
-  for (const settlement of await prisma.settlement.findMany({
-    where: { OR: [{ fromUserId: userId }, { toUserId: userId }] },
-  })) {
-    if (settlement.fromUserId === userId) totalOwe = Math.max(0, totalOwe - settlement.amount)
-    else totalOwed = Math.max(0, totalOwed - settlement.amount)
-  }
+  const balanceCents = buildBalanceMap(allExpenses, allSettlements, true)
+  const { oweCents, owedCents } = getUserTotals(balanceCents, userId)
+  const totalOwed = centsToDisplay(owedCents)
+  const totalOwe = centsToDisplay(oweCents)
 
   return { groups, expenses, settlements, totalOwed, totalOwe }
 }
@@ -200,9 +186,12 @@ export default async function DashboardPage() {
               {expenses.map((expense) => {
                 const mySplit = expense.splits.find((s) => s.userId === session.user!.id)
                 const isPayer = expense.paidById === session.user!.id
+                // DB stores amounts in cents; divide by 100 for display
+                const expenseDollars = expense.amount / 100
+                const mySplitDollars = (mySplit?.amount ?? 0) / 100
                 const myAmount = isPayer
-                  ? expense.amount - (mySplit?.amount ?? 0)
-                  : -(mySplit?.amount ?? 0)
+                  ? expenseDollars - mySplitDollars
+                  : -mySplitDollars
 
                 return (
                   <div
@@ -222,7 +211,7 @@ export default async function DashboardPage() {
                       <p className={`text-sm font-semibold ${myAmount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                         {myAmount >= 0 ? "+" : ""}{formatCurrency(myAmount)}
                       </p>
-                      <p className="text-xs text-slate-500">{formatCurrency(expense.amount)} total</p>
+                      <p className="text-xs text-slate-500">{formatCurrency(expenseDollars)} total</p>
                     </div>
                   </div>
                 )

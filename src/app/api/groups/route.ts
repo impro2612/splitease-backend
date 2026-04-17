@@ -2,6 +2,14 @@ import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/mobile-auth"
 
+function expenseToApi(e: any) {
+  return {
+    ...e,
+    amount: e.amount / 100,
+    splits: e.splits?.map((s: any) => ({ ...s, amount: s.amount / 100 })),
+  }
+}
+
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -24,7 +32,7 @@ export async function GET(req: NextRequest) {
     orderBy: { updatedAt: "desc" },
   })
 
-  return Response.json(groups)
+  return Response.json(groups.map((g) => ({ ...g, expenses: g.expenses.map(expenseToApi) })))
 }
 
 export async function POST(req: NextRequest) {
