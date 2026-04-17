@@ -74,11 +74,11 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
 
   useEffect(() => {
     fetchGroup()
-  }, [id])
+  }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (session?.user?.id && !expPaidBy) setExpPaidBy(session.user.id)
-  }, [session])
+  }, [session?.user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function addExpense() {
     if (!expDesc || !expAmount || !expPaidBy) return

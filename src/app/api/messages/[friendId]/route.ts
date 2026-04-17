@@ -12,6 +12,19 @@ export async function GET(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { friendId } = await params
+
+  // Enforce friendship — same check as POST /api/messages
+  const friendship = await prisma.friend.findFirst({
+    where: {
+      status: "ACCEPTED",
+      OR: [
+        { requesterId: user.id, addresseeId: friendId },
+        { requesterId: friendId, addresseeId: user.id },
+      ],
+    },
+  })
+  if (!friendship) return Response.json({ error: "Not friends" }, { status: 403 })
+
   const url = new URL(req.url)
   const after = url.searchParams.get("after") // ISO date string for delta sync
   const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50"), 100)

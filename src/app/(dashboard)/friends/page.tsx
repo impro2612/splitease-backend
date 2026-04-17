@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
 import { Search, UserPlus, Check, X } from "lucide-react"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -9,12 +10,15 @@ import { Badge } from "@/components/ui/badge"
 import { getInitials } from "@/lib/utils"
 
 type User = { id: string; name: string | null; email: string; image: string | null }
-type FriendRequest = { id: string; requester?: User; addressee?: User; status: string; direction: "sent" | "received" }
+type FriendRecord = { id: string; requesterId: string; addresseeId: string; requester: User; addressee: User; status: string }
 
 export default function FriendsPage() {
+  const { data: session } = useSession()
   const [searchQuery, setSearchQuery] = useState("")
   const [searchResults, setSearchResults] = useState<User[]>([])
-  const [friends, setFriends] = useState<FriendRequest[]>([])
+  const [accepted, setAccepted] = useState<FriendRecord[]>([])
+  const [incoming, setIncoming] = useState<FriendRecord[]>([])
+  const [outgoing, setOutgoing] = useState<FriendRecord[]>([])
   const [loading, setLoading] = useState(false)
   const [sendingTo, setSendingTo] = useState<string | null>(null)
 
@@ -31,11 +35,15 @@ export default function FriendsPage() {
     const res = await fetch("/api/friends")
     if (res.ok) {
       const data = await res.json()
-      setFriends(data)
+      setAccepted(data.friends ?? [])
+      setIncoming(data.incoming ?? [])
+      setOutgoing(data.outgoing ?? [])
     }
   }
 
-  useEffect(() => { fetchFriends() }, [])
+  useEffect(() => {
+    fetchFriends()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const timer = setTimeout(() => searchUsers(searchQuery), 400)
@@ -64,9 +72,8 @@ export default function FriendsPage() {
     fetchFriends()
   }
 
-  const accepted = friends.filter((f) => f.status === "ACCEPTED")
-  const pending = friends.filter((f) => f.status === "PENDING" && f.direction === "received")
-  const sent = friends.filter((f) => f.status === "PENDING" && f.direction === "sent")
+  const userId = session?.user?.id
+  const allKnown = [...accepted, ...incoming, ...outgoing]
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -95,7 +102,7 @@ export default function FriendsPage() {
         {searchResults.length > 0 && (
           <div className="mt-2 rounded-xl border border-white/10 bg-slate-900 overflow-hidden shadow-xl">
             {searchResults.map((user) => {
-              const alreadyFriend = friends.some(
+              const alreadyFriend = allKnown.some(
                 (f) => f.requester?.id === user.id || f.addressee?.id === user.id
               )
               return (
@@ -131,15 +138,15 @@ export default function FriendsPage() {
       </div>
 
       {/* Pending requests */}
-      {pending.length > 0 && (
+      {incoming.length > 0 && (
         <div className="mb-6">
           <h2 className="text-sm font-medium text-slate-400 mb-3 flex items-center gap-2">
             Friend requests
-            <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded-full">{pending.length}</span>
+            <span className="bg-indigo-500 text-white text-xs px-1.5 py-0.5 rounded-full">{incoming.length}</span>
           </h2>
           <div className="space-y-2">
-            {pending.map((req) => {
-              const user = req.requester!
+            {incoming.map((req) => {
+              const user = req.requester
               return (
                 <div key={req.id} className="flex items-center gap-3 p-4 rounded-xl border border-indigo-500/20 bg-indigo-500/5">
                   <Avatar>
@@ -178,7 +185,7 @@ export default function FriendsPage() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {accepted.map((req) => {
-              const user = req.direction === "sent" ? req.addressee! : req.requester!
+              const user = req.requesterId === userId ? req.addressee : req.requester
               return (
                 <div key={req.id} className="flex items-center gap-3 p-4 rounded-xl border border-white/10 bg-white/3">
                   <Avatar>
@@ -196,11 +203,11 @@ export default function FriendsPage() {
         )}
 
         {/* Sent requests */}
-        {sent.length > 0 && (
+        {outgoing.length > 0 && (
           <div className="mt-4">
             <h3 className="text-xs text-slate-500 mb-2">Pending sent requests</h3>
-            {sent.map((req) => {
-              const user = req.addressee!
+            {outgoing.map((req) => {
+              const user = req.addressee
               return (
                 <div key={req.id} className="flex items-center gap-3 p-3 rounded-xl border border-white/5 bg-white/3 mb-2">
                   <Avatar className="w-8 h-8">
