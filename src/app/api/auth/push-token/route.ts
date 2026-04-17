@@ -17,3 +17,16 @@ export async function POST(req: NextRequest) {
 
   return Response.json({ ok: true })
 }
+
+// DELETE /api/auth/push-token  — clears the push token (notifications disabled)
+export async function DELETE(req: NextRequest) {
+  const user = await getSessionUser(req)
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  await prisma.user.update({
+    where: { id: user.id },
+    data: { pushToken: null },
+  })
+
+  return Response.json({ ok: true })
+}
