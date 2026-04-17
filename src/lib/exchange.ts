@@ -1,32 +1,34 @@
-type RatesResponse = {
-  result?: string
-  rates?: Record<string, number>
-}
+const CACHE_TTL_MS = 60 * 60 * 1000 // 1 hour
 
-const CACHE_TTL_MS = 60 * 60 * 1000
+// Cache keyed by fromCurrency — each entry holds all rates from that currency
+const rateCache: Record<string, { rates: Record<string, number>; cachedAt: number }> = {}
 
-let cachedRates: Record<string, number> | null = null
-let cachedAt = 0
+async function fetchDirectRates(fromCurrency: string): Promise<Record<string, number>> {
+  const from = fromCurrency.toLowerCase()
+  const cached = rateCache[from]
 
-async function fetchUsdRates(): Promise<Record<string, number>> {
-  const now = Date.now()
-  if (cachedRates && now - cachedAt < CACHE_TTL_MS) return cachedRates
+  if (cached && Date.now() - cached.cachedAt < CACHE_TTL_MS) {
+    return cached.rates
+  }
 
-  const res = await fetch("https://open.er-api.com/v6/latest/USD", {
-    next: { revalidate: 3600 },
-  })
+  const res = await fetch(
+    `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from}.min.json`,
+    { next: { revalidate: 3600 } }
+  )
+
   if (!res.ok) {
-    throw new Error(`Exchange rate fetch failed with ${res.status}`)
+    throw new Error(`Exchange rate fetch failed for ${fromCurrency}: HTTP ${res.status}`)
   }
 
-  const data = (await res.json()) as RatesResponse
-  if (!data.rates?.USD) {
-    throw new Error("Exchange rates response missing USD base rates")
+  const data = await res.json()
+  const rates: Record<string, number> = data[from]
+
+  if (!rates) {
+    throw new Error(`No rates found for currency: ${fromCurrency}`)
   }
 
-  cachedRates = data.rates
-  cachedAt = now
-  return data.rates
+  rateCache[from] = { rates, cachedAt: Date.now() }
+  return rates
 }
 
 export async function convertDisplayAmount(
@@ -37,14 +39,13 @@ export async function convertDisplayAmount(
   if (!Number.isFinite(amount) || amount === 0) return 0
   if (fromCurrency === toCurrency) return amount
 
-  const rates = await fetchUsdRates()
-  const fromRate = rates[fromCurrency]
-  const toRate = rates[toCurrency]
+  const rates = await fetchDirectRates(fromCurrency)
+  const directRate = rates[toCurrency.toLowerCase()]
 
-  if (!fromRate || !toRate) {
-    throw new Error(`Missing exchange rate for ${fromCurrency} -> ${toCurrency}`)
+  if (!directRate) {
+    throw new Error(`No direct rate available for ${fromCurrency} -> ${toCurrency}`)
   }
 
-  const usdAmount = amount / fromRate
-  return usdAmount * toRate
+  // Direct multiplication — no USD pivot, no compounding rounding error
+  return amount * directRate
 }
