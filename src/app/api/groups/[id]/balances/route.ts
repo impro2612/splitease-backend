@@ -17,7 +17,8 @@ export async function GET(
   })
   if (!member) return Response.json({ error: "Not a member" }, { status: 403 })
 
-  const [expenses, settlements, members] = await Promise.all([
+  const [group, expenses, settlements, members] = await Promise.all([
+    prisma.group.findUnique({ where: { id: groupId }, select: { currency: true } }),
     prisma.expense.findMany({ where: { groupId }, include: { splits: true } }),
     prisma.settlement.findMany({ where: { groupId } }),
     prisma.groupMember.findMany({
@@ -26,16 +27,45 @@ export async function GET(
     }),
   ])
 
+  const defaultCurrency = group?.currency ?? "USD"
   const memberMap = Object.fromEntries(members.map((m) => [m.userId, m.user]))
-  const balanceCents = buildBalanceMap(expenses, settlements, true)
 
-  const result = getNetBalances(balanceCents).map(({ fromUserId, toUserId, amountCents }) => ({
-    fromUserId,
-    toUserId,
-    fromUser: memberMap[fromUserId],
-    toUser: memberMap[toUserId],
-    amount: centsToDisplay(amountCents),
-  }))
+  // Group expenses by their currency
+  const expensesByCurrency: Record<string, typeof expenses> = {}
+  for (const exp of expenses) {
+    const cur = (exp as any).currency ?? defaultCurrency
+    if (!expensesByCurrency[cur]) expensesByCurrency[cur] = []
+    expensesByCurrency[cur].push(exp)
+  }
+
+  // Default currency first, then others alphabetically
+  const currencyOrder = [
+    defaultCurrency,
+    ...Object.keys(expensesByCurrency).filter(c => c !== defaultCurrency).sort(),
+  ]
+
+  const result: Array<{ currency: string; balances: any[] }> = []
+
+  for (const currency of currencyOrder) {
+    const currencyExpenses = expensesByCurrency[currency] ?? []
+    if (currencyExpenses.length === 0) continue
+
+    // Settlements are applied only to the default currency (no currency field on settlements)
+    const settlementsForCurrency = currency === defaultCurrency ? settlements : []
+    const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
+    const netBalances = getNetBalances(balanceCents)
+      .map(({ fromUserId, toUserId, amountCents }) => ({
+        fromUserId,
+        toUserId,
+        fromUser: memberMap[fromUserId],
+        toUser: memberMap[toUserId],
+        amount: centsToDisplay(amountCents),
+      }))
+
+    if (netBalances.length > 0) {
+      result.push({ currency, balances: netBalances })
+    }
+  }
 
   return Response.json(result)
 }
