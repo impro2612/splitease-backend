@@ -35,14 +35,26 @@ export async function GET(req: NextRequest) {
       prisma.settlement.findMany({ where: { groupId: group.id } }),
     ])
 
-    const balanceCents = buildBalanceMap(expenses, settlements, true)
-    const { oweCents, owedCents } = getUserTotals(balanceCents, user.id)
+    // Group expenses by their individual currency
+    const expensesByCurrency: Record<string, typeof expenses> = {}
+    for (const exp of expenses) {
+      const cur = (exp as any).currency ?? group.currency
+      if (!expensesByCurrency[cur]) expensesByCurrency[cur] = []
+      expensesByCurrency[cur].push(exp)
+    }
 
-    const oweDisplay = centsToDisplay(oweCents)
-    const owedDisplay = centsToDisplay(owedCents)
+    for (const [currency, currencyExpenses] of Object.entries(expensesByCurrency)) {
+      // Settlements only apply to the group's default currency
+      const settlementsForCurrency = currency === group.currency ? settlements : []
+      const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
+      const { oweCents, owedCents } = getUserTotals(balanceCents, user.id)
 
-    totalOwe += await convertDisplayAmount(oweDisplay, group.currency, displayCurrency)
-    totalOwed += await convertDisplayAmount(owedDisplay, group.currency, displayCurrency)
+      const oweDisplay = centsToDisplay(oweCents)
+      const owedDisplay = centsToDisplay(owedCents)
+
+      totalOwe += await convertDisplayAmount(oweDisplay, currency, displayCurrency)
+      totalOwed += await convertDisplayAmount(owedDisplay, currency, displayCurrency)
+    }
   }
 
   totalOwe = roundDisplayAmount(totalOwe, displayCurrency)
