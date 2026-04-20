@@ -30,7 +30,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const { description, amount, category, paidById, date } = await req.json()
+    const { description, amount, category, paidById, date, currency } = await req.json()
 
     const numAmount = amount !== undefined ? parseFloat(amount) : undefined
     if (numAmount !== undefined && (isNaN(numAmount) || numAmount <= 0)) {
@@ -51,6 +51,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ...(description !== undefined && { description }),
           ...(category !== undefined && { category }),
           ...(date !== undefined && { date: new Date(date) }),
+          ...(currency !== undefined && { currency }),
         },
         include: {
           paidBy: { select: { id: true, name: true, email: true, image: true } },
@@ -99,6 +100,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         ...(category !== undefined && { category }),
         ...(paidById !== undefined && { paidById }),
         ...(date !== undefined && { date: new Date(date) }),
+        ...(currency !== undefined && { currency }),
         splits: { create: newSplitData },
       },
       include: {

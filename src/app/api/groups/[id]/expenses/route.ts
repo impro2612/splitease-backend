@@ -27,7 +27,7 @@ export async function POST(
   if (!member) return Response.json({ error: "Not a member of this group" }, { status: 403 })
 
   try {
-    const { description, amount, category, paidById, splitType, splits, date } = await req.json()
+    const { description, amount, category, paidById, splitType, splits, date, currency } = await req.json()
 
     if (!description || !amount || !paidById) {
       return Response.json({ error: "Missing required fields" }, { status: 400 })
@@ -45,10 +45,11 @@ export async function POST(
     ])
 
     const memberIdSet = new Set(groupMembers.map((m) => m.userId))
+    const expenseCurrency = currency ?? groupData?.currency ?? "USD"
 
     // 0-decimal currencies have no sub-units (JPY, KRW, VND, IDR, HUF, CLP, COP)
     const NO_DECIMAL_CURRENCIES = new Set(["JPY", "KRW", "VND", "IDR", "HUF", "CLP", "COP"])
-    const isNoDecimal = NO_DECIMAL_CURRENCIES.has(groupData?.currency ?? "USD")
+    const isNoDecimal = NO_DECIMAL_CURRENCIES.has(expenseCurrency)
 
     let splitData: { userId: string; amount: number; paid: boolean }[]
 
@@ -125,7 +126,7 @@ export async function POST(
         groupId,
         description,
         amount: totalCents, // stored as cents
-        currency: groupData?.currency ?? "USD",
+        currency: expenseCurrency,
         category: category ?? "general",
         paidById,
         createdById: user.id,
