@@ -149,6 +149,7 @@ model Settlement {
   fromUserId String
   toUserId   String
   amount     Int      // stored in cents
+  currency   String   @default("USD")
   note       String?
   createdAt  DateTime @default(now())
 

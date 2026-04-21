@@ -44,8 +44,10 @@ export async function GET(req: NextRequest) {
     }
 
     for (const [currency, currencyExpenses] of Object.entries(expensesByCurrency)) {
-      // Settlements only apply to the group's default currency
-      const settlementsForCurrency = currency === group.currency ? settlements : []
+      // Apply settlements that match this currency
+      const settlementsForCurrency = settlements.filter(
+        (s) => ((s as any).currency ?? group.currency) === currency
+      )
       const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
       const { oweCents, owedCents } = getUserTotals(balanceCents, user.id)
 

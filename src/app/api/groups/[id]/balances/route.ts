@@ -50,8 +50,10 @@ export async function GET(
     const currencyExpenses = expensesByCurrency[currency] ?? []
     if (currencyExpenses.length === 0) continue
 
-    // Settlements are applied only to the default currency (no currency field on settlements)
-    const settlementsForCurrency = currency === defaultCurrency ? settlements : []
+    // Apply settlements that match this currency
+    const settlementsForCurrency = settlements.filter(
+      (s) => ((s as any).currency ?? defaultCurrency) === currency
+    )
     const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
     const netBalances = getNetBalances(balanceCents)
       .map(({ fromUserId, toUserId, amountCents }) => ({

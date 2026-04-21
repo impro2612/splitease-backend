@@ -13,7 +13,7 @@ export async function POST(
   const { id: groupId } = await params
 
   try {
-    const { toUserId, amount, note } = await req.json()
+    const { toUserId, amount, note, currency: reqCurrency } = await req.json()
 
     const member = await prisma.groupMember.findUnique({
       where: { groupId_userId: { groupId, userId: user.id } },
@@ -37,17 +37,32 @@ export async function POST(
       return Response.json({ error: "Recipient is not a member of this group" }, { status: 400 })
     }
 
-    // Compute current pairwise balance via shared engine to prevent phantom/over-settlements
+    // Load group to determine default currency
+    const group = await prisma.group.findUnique({ where: { id: groupId }, select: { currency: true } })
+    const defaultCurrency = group?.currency ?? "USD"
+    const settleCurrency = reqCurrency ?? defaultCurrency
+
+    // Compute current pairwise balance for the specific currency only
     const [expenses, priorSettlements] = await Promise.all([
       prisma.expense.findMany({ where: { groupId }, include: { splits: true } }),
       prisma.settlement.findMany({ where: { groupId } }),
     ])
 
-    const balanceCents = buildBalanceMap(expenses, priorSettlements, true)
+    // Only consider expenses in the settled currency
+    const currencyExpenses = expenses.filter(
+      (e) => ((e as any).currency ?? defaultCurrency) === settleCurrency
+    )
+
+    // Only apply prior settlements that are in the same currency
+    const currencySettlements = priorSettlements.filter(
+      (s) => ((s as any).currency ?? defaultCurrency) === settleCurrency
+    )
+
+    const balanceCents = buildBalanceMap(currencyExpenses, currencySettlements, true)
     const netDebtCents = getPairwiseNetCents(balanceCents, user.id, toUserId)
 
     if (netDebtCents <= 0) {
-      return Response.json({ error: "You do not owe this person anything in this group" }, { status: 400 })
+      return Response.json({ error: "You do not owe this person anything in this currency" }, { status: 400 })
     }
 
     const netDebt = centsToDisplay(netDebtCents)
@@ -60,7 +75,8 @@ export async function POST(
         groupId,
         fromUserId: user.id,
         toUserId,
-        amount: cappedCents, // stored as cents
+        amount: cappedCents,
+        currency: settleCurrency,
         note,
       },
       include: {
