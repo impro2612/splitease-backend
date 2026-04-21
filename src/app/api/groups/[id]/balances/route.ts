@@ -33,7 +33,7 @@ export async function GET(
   // Group expenses by their currency
   const expensesByCurrency: Record<string, typeof expenses> = {}
   for (const exp of expenses) {
-    const cur = (exp as any).currency ?? defaultCurrency
+    const cur = (exp as { currency?: string }).currency ?? defaultCurrency
     if (!expensesByCurrency[cur]) expensesByCurrency[cur] = []
     expensesByCurrency[cur].push(exp)
   }
@@ -44,7 +44,7 @@ export async function GET(
     ...Object.keys(expensesByCurrency).filter(c => c !== defaultCurrency).sort(),
   ]
 
-  const result: Array<{ currency: string; balances: any[] }> = []
+  const result: Array<{ currency: string; balances: Record<string, unknown>[] }> = []
 
   for (const currency of currencyOrder) {
     const currencyExpenses = expensesByCurrency[currency] ?? []
@@ -52,7 +52,7 @@ export async function GET(
 
     // Apply settlements that match this currency
     const settlementsForCurrency = settlements.filter(
-      (s) => ((s as any).currency ?? defaultCurrency) === currency
+      (s) => ((s as { currency?: string }).currency ?? defaultCurrency) === currency
     )
     const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
     const netBalances = getNetBalances(balanceCents)

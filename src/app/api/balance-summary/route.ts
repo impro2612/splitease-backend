@@ -38,7 +38,7 @@ export async function GET(req: NextRequest) {
     // Group expenses by their individual currency
     const expensesByCurrency: Record<string, typeof expenses> = {}
     for (const exp of expenses) {
-      const cur = (exp as any).currency ?? group.currency
+      const cur = (exp as { currency?: string }).currency ?? group.currency
       if (!expensesByCurrency[cur]) expensesByCurrency[cur] = []
       expensesByCurrency[cur].push(exp)
     }
@@ -46,7 +46,7 @@ export async function GET(req: NextRequest) {
     for (const [currency, currencyExpenses] of Object.entries(expensesByCurrency)) {
       // Apply settlements that match this currency
       const settlementsForCurrency = settlements.filter(
-        (s) => ((s as any).currency ?? group.currency) === currency
+        (s) => ((s as { currency?: string }).currency ?? group.currency) === currency
       )
       const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
       const { oweCents, owedCents } = getUserTotals(balanceCents, user.id)

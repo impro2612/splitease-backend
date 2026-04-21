@@ -1,4 +1,5 @@
-import NextAuth from "next-auth"
+import NextAuth, { type Session } from "next-auth"
+import type { JWT } from "next-auth/jwt"
 import { PrismaAdapter } from "@auth/prisma-adapter"
 import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
@@ -49,13 +50,13 @@ export const authOptions = {
     newUser: "/dashboard",
   },
   callbacks: {
-    async jwt({ token, user }: { token: any; user: any }) {
+    async jwt({ token, user }: { token: JWT; user?: { id?: string } }) {
       if (user) {
         token.id = user.id
       }
       return token
     },
-    async session({ session, token }: { session: any; token: any }) {
+    async session({ session, token }: { session: Session; token: JWT }) {
       if (token && session.user) {
         session.user.id = token.id as string
       }

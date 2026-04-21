@@ -73,10 +73,12 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchGroup()
   }, [id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (session?.user?.id && !expPaidBy) setExpPaidBy(session.user.id)
   }, [session?.user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
 

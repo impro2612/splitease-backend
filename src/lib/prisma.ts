@@ -10,6 +10,7 @@ function createPrismaClient() {
     url: (process.env.DATABASE_URL ?? "file:./dev.db").trim(),
     authToken: process.env.TURSO_AUTH_TOKEN?.trim(),
   })
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return new PrismaClient({ adapter } as any)
 }
 

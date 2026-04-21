@@ -3,11 +3,12 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 
 /** Convert a DB expense (amounts in cents) to the API shape (amounts in dollars). */
-function expenseToApi(e: any) {
+type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
+function expenseToApi(e: ExpenseRow) {
   return {
     ...e,
     amount: e.amount / 100,
-    splits: e.splits?.map((s: any) => ({ ...s, amount: s.amount / 100 })),
+    splits: e.splits?.map((s) => ({ ...s, amount: s.amount / 100 })),
   }
 }
 

@@ -4,11 +4,12 @@ import { prisma } from "@/lib/prisma"
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
 
-function expenseToApi(e: any) {
+type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
+function expenseToApi(e: ExpenseRow) {
   return {
     ...e,
     amount: e.amount / 100,
-    splits: e.splits?.map((s: any) => ({ ...s, amount: s.amount / 100 })),
+    splits: e.splits?.map((s) => ({ ...s, amount: s.amount / 100 })),
   }
 }
 

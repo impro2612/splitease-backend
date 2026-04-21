@@ -42,6 +42,7 @@ export default function FriendsPage() {
   }
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchFriends()
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -50,12 +50,12 @@ export async function POST(
 
     // Only consider expenses in the settled currency
     const currencyExpenses = expenses.filter(
-      (e) => ((e as any).currency ?? defaultCurrency) === settleCurrency
+      (e) => ((e as { currency?: string }).currency ?? defaultCurrency) === settleCurrency
     )
 
     // Only apply prior settlements that are in the same currency
     const currencySettlements = priorSettlements.filter(
-      (s) => ((s as any).currency ?? defaultCurrency) === settleCurrency
+      (s) => ((s as { currency?: string }).currency ?? defaultCurrency) === settleCurrency
     )
 
     const balanceCents = buildBalanceMap(currencyExpenses, currencySettlements, true)

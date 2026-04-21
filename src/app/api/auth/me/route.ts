@@ -21,7 +21,7 @@ export async function PATCH(req: NextRequest) {
     const body = await req.json()
     const { name, email, currentPassword, newPassword, image } = body
 
-    const updateData: Record<string, any> = {}
+    const updateData: Record<string, unknown> = {}
 
     if (name !== undefined) {
       if (!name?.trim()) return Response.json({ error: "Name cannot be empty" }, { status: 400 })
