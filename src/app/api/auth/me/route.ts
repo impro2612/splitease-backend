@@ -19,6 +19,19 @@ export async function DELETE(req: NextRequest) {
       })
       // Delete group memberships (ExpenseSplit cascades)
       await tx.groupMember.deleteMany({ where: { userId: user.id } })
+      // Reassign createdById on groups that still have other members
+      const ownedGroups = await tx.group.findMany({
+        where: { createdById: user.id },
+        include: { members: { take: 1 } },
+      })
+      for (const group of ownedGroups) {
+        if (group.members.length > 0) {
+          await tx.group.update({
+            where: { id: group.id },
+            data: { createdById: group.members[0].userId },
+          })
+        }
+      }
       // Delete groups this user created that now have no remaining members
       await tx.group.deleteMany({
         where: { createdById: user.id, members: { none: {} } },
