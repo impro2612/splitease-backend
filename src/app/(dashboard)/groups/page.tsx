@@ -27,15 +27,16 @@ export default async function GroupsPage() {
   })
 
   // Calculate balance per group for current user (DB amounts are in cents, divide by 100 for display)
+  const myId = session!.user!.id as string
   function getGroupBalance(group: typeof groups[0]) {
     let owedCents = 0
     let owesCents = 0
     for (const expense of group.expenses) {
-      const mySplit = expense.splits.find((s) => s.userId === session.user!.id)
+      const mySplit = expense.splits.find((s) => s.userId === myId)
       if (!mySplit) continue
-      if (expense.paidById === session.user!.id) {
+      if (expense.paidById === myId) {
         for (const split of expense.splits) {
-          if (split.userId !== session.user!.id && !split.paid) owedCents += split.amount
+          if (split.userId !== myId && !split.paid) owedCents += split.amount
         }
       } else if (!mySplit.paid) {
         owesCents += mySplit.amount

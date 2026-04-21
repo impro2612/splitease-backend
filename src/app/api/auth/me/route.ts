@@ -3,6 +3,47 @@ import bcrypt from "bcryptjs"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 
+export async function DELETE(req: NextRequest) {
+  const user = await getSessionUser(req)
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Delete settlements (no cascade on fromUser/toUser)
+      await tx.settlement.deleteMany({
+        where: { OR: [{ fromUserId: user.id }, { toUserId: user.id }] },
+      })
+      // Delete expenses paid or created by this user (splits cascade)
+      await tx.expense.deleteMany({
+        where: { OR: [{ paidById: user.id }, { createdById: user.id }] },
+      })
+      // Delete group memberships (ExpenseSplit cascades)
+      await tx.groupMember.deleteMany({ where: { userId: user.id } })
+      // Delete groups this user created that now have no remaining members
+      await tx.group.deleteMany({
+        where: { createdById: user.id, members: { none: {} } },
+      })
+      // Delete friend relationships
+      await tx.friend.deleteMany({
+        where: { OR: [{ requesterId: user.id }, { addresseeId: user.id }] },
+      })
+      // Delete messages
+      await tx.message.deleteMany({
+        where: { OR: [{ senderId: user.id }, { receiverId: user.id }] },
+      })
+      // Delete invitations sent by this user
+      await tx.invitation.deleteMany({ where: { invitedById: user.id } })
+      // Delete user — sessions and accounts cascade via schema rules
+      await tx.user.delete({ where: { id: user.id } })
+    })
+
+    return Response.json({ success: true })
+  } catch (err) {
+    console.error(err)
+    return Response.json({ error: "Failed to delete account" }, { status: 500 })
+  }
+}
+
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
