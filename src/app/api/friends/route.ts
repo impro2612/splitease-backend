@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -23,7 +24,25 @@ export async function GET(req: NextRequest) {
   const incoming = friends.filter((f) => f.status === "PENDING" && f.addresseeId === userId)
   const outgoing = friends.filter((f) => f.status === "PENDING" && f.requesterId === userId)
 
-  return Response.json({ friends: accepted, incoming, outgoing })
+  const friendIds = accepted.map((f) => (f.requesterId === userId ? f.addresseeId : f.requesterId))
+  const unreadRows = friendIds.length === 0
+    ? []
+    : await prisma.message.findMany({
+        where: {
+          receiverId: userId,
+          senderId: { in: friendIds },
+          read: false,
+          deleted: false,
+        },
+        select: { senderId: true },
+        distinct: ["senderId"],
+      })
+
+  const unreadByFriend = Object.fromEntries(
+    unreadRows.map((row) => [row.senderId, 1])
+  )
+
+  return Response.json({ friends: accepted, incoming, outgoing, unreadByFriend })
 }
 
 export async function POST(req: NextRequest) {
@@ -42,11 +61,39 @@ export async function POST(req: NextRequest) {
       },
     })
 
-    if (existing) return Response.json({ error: "Friend request already exists" }, { status: 409 })
+    let friend
 
-    const friend = await prisma.friend.create({
-      data: { requesterId: user.id, addresseeId },
+    if (existing?.status === "ACCEPTED" || existing?.status === "PENDING") {
+      return Response.json({ error: "Friend request already exists" }, { status: 409 })
+    }
+
+    if (existing) {
+      friend = await prisma.friend.update({
+        where: { id: existing.id },
+        data: {
+          requesterId: user.id,
+          addresseeId,
+          status: "PENDING",
+          createdAt: new Date(),
+        },
+      })
+    } else {
+      friend = await prisma.friend.create({
+        data: { requesterId: user.id, addresseeId },
+      })
+    }
+
+    const addressee = await prisma.user.findUnique({
+      where: { id: addresseeId },
+      select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
     })
+    if (addressee) {
+      await notifyUsers([addressee], "New friend request", `${getDisplayName(user)} sent you a friend request.`, {
+        type: "friend_request",
+        friendRequestId: friend.id,
+        url: buildAppUrl("friends"),
+      })
+    }
 
     return Response.json(friend, { status: 201 })
   } catch (err) {

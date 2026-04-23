@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 /** Convert a DB expense (amounts in cents) to the API shape (amounts in dollars). */
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
@@ -41,8 +42,15 @@ export async function POST(
 
     // Fetch group + members together
     const [groupData, groupMembers] = await Promise.all([
-      prisma.group.findUnique({ where: { id: groupId }, select: { currency: true } }),
-      prisma.groupMember.findMany({ where: { groupId }, include: { user: true } }),
+      prisma.group.findUnique({ where: { id: groupId }, select: { currency: true, name: true, emoji: true } }),
+      prisma.groupMember.findMany({
+        where: { groupId },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+          },
+        },
+      }),
     ])
 
     const memberIdSet = new Set(groupMembers.map((m) => m.userId))
@@ -144,6 +152,18 @@ export async function POST(
     })
 
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
+    await notifyUsers(
+      groupMembers.map((m) => m.user),
+      `${groupData?.emoji ?? "💸"} New expense in ${groupData?.name ?? "your group"}`,
+      `${getDisplayName(user)} added "${expense.description}" for ${expense.amount / 100} ${expense.currency}`,
+      {
+        type: "expense_created",
+        groupId,
+        expenseId: expense.id,
+        url: buildAppUrl(`group/${groupId}`),
+      },
+      [user.id]
+    )
 
     // Return dollars to client
     return Response.json(expenseToApi(expense), { status: 201 })

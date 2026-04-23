@@ -27,7 +27,7 @@ export function Sidebar() {
         <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-lg shadow-lg shadow-indigo-500/20">
           💸
         </div>
-        <span className="text-lg font-bold text-white">SplitEase</span>
+        <span className="text-lg font-bold text-white">SplitIT</span>
       </div>
 
       {/* Create group button */}

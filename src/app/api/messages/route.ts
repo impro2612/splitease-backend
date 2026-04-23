@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 // POST /api/messages — send a message
 export async function POST(req: NextRequest) {
@@ -41,10 +42,22 @@ export async function POST(req: NextRequest) {
   })
 
   // Ping receiver via Pusher (no content — just a new-message signal)
-  await pusherServer.trigger(`user-${receiverId}`, "new-message", {
+  await pusherServer.trigger(`private-user-${receiverId}`, "new-message", {
     senderId: user.id,
     clientId: message.clientId,
   }).catch(() => {}) // non-fatal
+
+  const receiver = await prisma.user.findUnique({
+    where: { id: receiverId },
+    select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+  })
+  if (receiver) {
+    await notifyUsers([receiver], getDisplayName(user), "Sent you a message", {
+      type: "chat_message",
+      friendId: user.id,
+      url: buildAppUrl(`chat/${user.id}`, { name: user.name ?? user.email }),
+    })
+  }
 
   return Response.json(message, { status: 201 })
 }

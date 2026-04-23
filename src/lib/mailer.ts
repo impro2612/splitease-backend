@@ -12,15 +12,15 @@ const transporter = nodemailer.createTransport({
 
 export async function sendPasswordResetEmail(email: string, otp: string) {
   await transporter.sendMail({
-    from: `"SplitEase" <${process.env.SMTP_USER}>`,
+    from: `"SplitIT" <${process.env.SMTP_USER}>`,
     to: email,
-    subject: "Your SplitEase password reset code",
+    subject: "Your SplitIT password reset code",
     html: `
       <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:32px;background:#0a0a1a;color:#fff;border-radius:16px;">
         <div style="text-align:center;margin-bottom:24px;">
           <span style="font-size:48px;">💸</span>
           <h2 style="color:#fff;margin:8px 0 4px;">Reset your password</h2>
-          <p style="color:#94a3b8;margin:0;">Use the code below to reset your SplitEase password.</p>
+          <p style="color:#94a3b8;margin:0;">Use the code below to reset your SplitIT password.</p>
         </div>
         <div style="background:#1a1a2e;border-radius:12px;padding:24px;text-align:center;margin:24px 0;">
           <p style="color:#94a3b8;font-size:13px;margin:0 0 8px;">Your one-time code</p>

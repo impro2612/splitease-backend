@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
 
@@ -44,6 +45,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const payerChanged = paidById !== undefined && paidById !== expense.paidById
     const newPaidById = paidById ?? expense.paidById
 
+    const [groupInfo, groupMembers] = await Promise.all([
+      prisma.group.findUnique({
+        where: { id: groupId },
+        select: { name: true, emoji: true },
+      }),
+      prisma.groupMember.findMany({
+        where: { groupId },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+          },
+        },
+      }),
+    ])
+
     if (!amountChanged && !payerChanged) {
       // Only metadata changed — preserve splits exactly as-is
       const updated = await prisma.expense.update({
@@ -62,6 +78,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         },
       })
       await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
+      await notifyUsers(
+        groupMembers.map((m) => m.user),
+        `${groupInfo?.emoji ?? "✏️"} Expense updated in ${groupInfo?.name ?? "your group"}`,
+        `${getDisplayName(user)} updated "${updated.description}"`,
+        {
+          type: "expense_updated",
+          groupId,
+          expenseId: updated.id,
+          url: buildAppUrl(`group/${groupId}`),
+        },
+        [user.id]
+      )
       return Response.json(expenseToApi(updated))
     }
 
@@ -113,6 +141,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
 
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
+    await notifyUsers(
+      groupMembers.map((m) => m.user),
+      `${groupInfo?.emoji ?? "✏️"} Expense updated in ${groupInfo?.name ?? "your group"}`,
+      `${getDisplayName(user)} updated "${updated.description}"`,
+      {
+        type: "expense_updated",
+        groupId,
+        expenseId: updated.id,
+        url: buildAppUrl(`group/${groupId}`),
+      },
+      [user.id]
+    )
     return Response.json(expenseToApi(updated))
   } catch (err) {
     console.error(err)
@@ -137,7 +177,34 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     return Response.json({ error: "Expense not found" }, { status: 404 })
   }
 
+  const [groupInfo, groupMembers] = await Promise.all([
+    prisma.group.findUnique({
+      where: { id: groupId },
+      select: { name: true, emoji: true },
+    }),
+    prisma.groupMember.findMany({
+      where: { groupId },
+      include: {
+        user: {
+          select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+        },
+      },
+    }),
+  ])
+
   await prisma.expense.delete({ where: { id: expenseId } })
   await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
+  await notifyUsers(
+    groupMembers.map((m) => m.user),
+    `${groupInfo?.emoji ?? "🗑️"} Expense removed in ${groupInfo?.name ?? "your group"}`,
+    `${getDisplayName(user)} removed "${expense.description}"`,
+    {
+      type: "expense_deleted",
+      groupId,
+      expenseId,
+      url: buildAppUrl(`group/${groupId}`),
+    },
+    [user.id]
+  )
   return Response.json({ success: true })
 }

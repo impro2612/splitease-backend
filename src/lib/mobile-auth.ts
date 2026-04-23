@@ -2,10 +2,7 @@ import { NextRequest } from "next/server"
 import * as jose from "jose"
 import { getServerSession } from "next-auth"
 import { authOptions } from "./auth"
-
-const SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET ?? "fallback-secret-change-in-production"
-)
+import { MOBILE_JWT_SECRET } from "./jwt-secret"
 
 type SessionUser = { id: string; email: string; name?: string | null }
 
@@ -16,7 +13,7 @@ export async function getSessionUser(req: NextRequest): Promise<SessionUser | nu
   if (authHeader?.startsWith("Bearer ")) {
     const token = authHeader.slice(7)
     try {
-      const { payload } = await jose.jwtVerify(token, SECRET)
+      const { payload } = await jose.jwtVerify(token, MOBILE_JWT_SECRET)
       if (payload.id && payload.email) {
         return { id: payload.id as string, email: payload.email as string, name: payload.name as string }
       }

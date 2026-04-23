@@ -2,11 +2,7 @@ import { NextRequest } from "next/server"
 import bcrypt from "bcryptjs"
 import * as jose from "jose"
 import { prisma } from "@/lib/prisma"
-
-// Simple JWT for mobile clients (separate from NextAuth sessions)
-const SECRET = new TextEncoder().encode(
-  process.env.NEXTAUTH_SECRET ?? "fallback-secret-change-in-production"
-)
+import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
 
 // Warm-up ping — fires a cheap Prisma query so the DB connection is open
 // by the time the user submits credentials. A static response would not
@@ -48,7 +44,7 @@ export async function POST(req: NextRequest) {
     })
       .setProtectedHeader({ alg: "HS256" })
       .setExpirationTime("30d")
-      .sign(SECRET)
+      .sign(MOBILE_JWT_SECRET)
 
     return Response.json({
       token,

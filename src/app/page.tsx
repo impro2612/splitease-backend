@@ -18,7 +18,7 @@ export default function LandingPage() {
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-lg">
             💸
           </div>
-          <span className="text-xl font-bold text-white">SplitEase</span>
+          <span className="text-xl font-bold text-white">SplitIT</span>
         </div>
         <div className="flex items-center gap-3">
           <Link href="/signin">
@@ -77,7 +77,7 @@ export default function LandingPage() {
               </div>
               <div className="flex-1 flex justify-center">
                 <div className="px-4 py-1 rounded-full bg-white/5 text-xs text-slate-400">
-                  splitease.app/dashboard
+                  splitit.app/dashboard
                 </div>
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/5 py-8 text-center text-slate-500 text-sm">
-        <p>© 2024 SplitEase. Made with ❤️ for people who hate awkward money chats.</p>
+        <p>© 2024 SplitIT. Made with ❤️ for people who hate awkward money chats.</p>
       </footer>
     </div>
   )

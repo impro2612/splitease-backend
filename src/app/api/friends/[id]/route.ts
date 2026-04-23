@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 export async function PATCH(
   req: NextRequest,
@@ -19,8 +20,19 @@ export async function PATCH(
 
   if (action === "accept") {
     await prisma.friend.update({ where: { id }, data: { status: "ACCEPTED" } })
+    const requester = await prisma.user.findUnique({
+      where: { id: friend.requesterId },
+      select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+    })
+    if (requester) {
+      await notifyUsers([requester], "Friend request accepted", `${getDisplayName(user)} accepted your friend request.`, {
+        type: "friend_accept",
+        friendId: user.id,
+        url: buildAppUrl("friends"),
+      })
+    }
   } else if (action === "reject") {
-    await prisma.friend.delete({ where: { id } })
+    await prisma.friend.update({ where: { id }, data: { status: "REJECTED" } })
   }
 
   return Response.json({ success: true })
@@ -41,7 +53,10 @@ export async function DELETE(
     return Response.json({ error: "Not found" }, { status: 404 })
   }
 
-  await prisma.friend.delete({ where: { id } })
+  await prisma.friend.update({
+    where: { id },
+    data: { status: "REMOVED" },
+  })
 
   return Response.json({ success: true })
 }

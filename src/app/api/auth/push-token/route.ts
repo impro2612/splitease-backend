@@ -10,22 +10,31 @@ export async function POST(req: NextRequest) {
   const { pushToken } = await req.json()
   if (!pushToken) return Response.json({ error: "pushToken required" }, { status: 400 })
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { pushToken },
+  await prisma.pushDevice.upsert({
+    where: { token: pushToken },
+    update: { userId: user.id },
+    create: {
+      userId: user.id,
+      token: pushToken,
+    },
   })
 
   return Response.json({ ok: true })
 }
 
-// DELETE /api/auth/push-token  — clears the push token (notifications disabled)
+// DELETE /api/auth/push-token  — clears the current device push token
 export async function DELETE(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  await prisma.user.update({
-    where: { id: user.id },
-    data: { pushToken: null },
+  const { pushToken } = await req.json().catch(() => ({ pushToken: undefined }))
+  if (!pushToken) return Response.json({ error: "pushToken required" }, { status: 400 })
+
+  await prisma.pushDevice.deleteMany({
+    where: {
+      userId: user.id,
+      token: pushToken,
+    },
   })
 
   return Response.json({ ok: true })

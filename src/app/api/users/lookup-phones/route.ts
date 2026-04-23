@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { normalizePhone } from "@/lib/phone"
 
 // POST /api/users/lookup-phones
 // Body: { phones: string[] }  — normalized phone numbers
@@ -13,20 +14,27 @@ export async function POST(req: NextRequest) {
   if (!Array.isArray(phones) || phones.length === 0) return Response.json({})
 
   // Limit to 500 to avoid abuse
-  const limited = phones.slice(0, 500)
+  const limited = phones
+    .slice(0, 500)
+    .map((phone) => normalizePhone(String(phone ?? "")))
+    .filter(Boolean)
+
+  if (limited.length === 0) return Response.json({})
 
   const users = await prisma.user.findMany({
     where: {
-      phone: { in: limited },
+      phoneNormalized: { in: limited },
       id: { not: user.id },
     },
-    select: { id: true, name: true, email: true, image: true, phone: true },
+    select: { id: true, name: true, email: true, image: true, phoneNormalized: true },
   })
 
   // Return as a map: phone -> user info
   const result: Record<string, { id: string; name: string | null; email: string; image: string | null }> = {}
   for (const u of users) {
-    if (u.phone) result[u.phone] = { id: u.id, name: u.name, email: u.email, image: u.image }
+    if (u.phoneNormalized) {
+      result[u.phoneNormalized] = { id: u.id, name: u.name, email: u.email, image: u.image }
+    }
   }
 
   return Response.json(result)

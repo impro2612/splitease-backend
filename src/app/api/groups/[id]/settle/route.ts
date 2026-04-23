@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildBalanceMap, getPairwiseNetCents, centsToDisplay } from "@/lib/balance"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 export async function POST(
   req: NextRequest,
@@ -38,14 +39,25 @@ export async function POST(
     }
 
     // Load group to determine default currency
-    const group = await prisma.group.findUnique({ where: { id: groupId }, select: { currency: true } })
+    const group = await prisma.group.findUnique({
+      where: { id: groupId },
+      select: { currency: true, name: true, emoji: true },
+    })
     const defaultCurrency = group?.currency ?? "USD"
     const settleCurrency = reqCurrency ?? defaultCurrency
 
     // Compute current pairwise balance for the specific currency only
-    const [expenses, priorSettlements] = await Promise.all([
+    const [expenses, priorSettlements, groupMembers] = await Promise.all([
       prisma.expense.findMany({ where: { groupId }, include: { splits: true } }),
       prisma.settlement.findMany({ where: { groupId } }),
+      prisma.groupMember.findMany({
+        where: { groupId },
+        include: {
+          user: {
+            select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+          },
+        },
+      }),
     ])
 
     // Only consider expenses in the settled currency
@@ -84,6 +96,34 @@ export async function POST(
         toUser: { select: { id: true, name: true, email: true, image: true } },
       },
     })
+
+    const recipient = groupMembers.find((m) => m.userId === toUserId)?.user
+    const actorName = getDisplayName(user)
+    if (recipient) {
+      await notifyUsers(
+        [recipient],
+        `${group?.emoji ?? "✅"} Settlement in ${group?.name ?? "your group"}`,
+        `${actorName} settled ${settlement.amount / 100} ${settlement.currency} with you`,
+        {
+          type: "settlement",
+          groupId,
+          settlementId: settlement.id,
+          url: buildAppUrl(`group/${groupId}`),
+        }
+      )
+    }
+    await notifyUsers(
+      groupMembers.map((m) => m.user),
+      `${group?.emoji ?? "✅"} Settlement in ${group?.name ?? "your group"}`,
+      `${actorName} recorded a settlement with ${recipient ? getDisplayName(recipient) : "a group member"}`,
+      {
+        type: "settlement",
+        groupId,
+        settlementId: settlement.id,
+        url: buildAppUrl(`group/${groupId}`),
+      },
+      [user.id, toUserId]
+    )
 
     return Response.json({ ...settlement, amount: settlement.amount / 100 }, { status: 201 })
   } catch (err) {

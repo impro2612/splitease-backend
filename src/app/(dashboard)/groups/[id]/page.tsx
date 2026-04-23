@@ -483,7 +483,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
             {memberError && (
               <p className="text-xs text-rose-400">{memberError}</p>
             )}
-            <p className="text-xs text-slate-500">Member must already have a SplitEase account</p>
+            <p className="text-xs text-slate-500">Member must already have a SplitIT account</p>
           </div>
           <DialogFooter>
             <Button variant="ghost" onClick={() => setShowMember(false)}>Cancel</Button>

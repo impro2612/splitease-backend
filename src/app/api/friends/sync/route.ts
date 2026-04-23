@@ -3,8 +3,8 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 
 // POST /api/friends/sync
-// Backfills ACCEPTED friendships for all co-members in the user's groups.
-// Safe to call multiple times — skips pairs that are already friends.
+// Backfills ACCEPTED friendships for all co-members in the user's groups
+// only when no prior relationship exists between the pair.
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
