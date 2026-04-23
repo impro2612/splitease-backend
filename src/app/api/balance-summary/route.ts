@@ -2,15 +2,10 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildBalanceMap, getUserTotals, centsToDisplay } from "@/lib/balance"
-import { convertDisplayAmount } from "@/lib/exchange"
-import { roundDisplayAmount } from "@/lib/currency"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
-
-  const url = new URL(req.url)
-  const displayCurrency = (url.searchParams.get("currency") ?? "USD").toUpperCase()
 
   const groups = await prisma.group.findMany({
     where: { members: { some: { userId: user.id } } },
@@ -18,16 +13,11 @@ export async function GET(req: NextRequest) {
   })
 
   if (groups.length === 0) {
-    return Response.json({
-      currency: displayCurrency,
-      totalOwed: 0,
-      totalOwe: 0,
-      net: 0,
-    })
+    return Response.json({ perCurrency: {} })
   }
 
-  let totalOwed = 0
-  let totalOwe = 0
+  // Accumulate raw owe/owed per currency — client will convert using its own cached rates
+  const perCurrency: Record<string, { owe: number; owed: number }> = {}
 
   for (const group of groups) {
     const [expenses, settlements] = await Promise.all([
@@ -35,7 +25,6 @@ export async function GET(req: NextRequest) {
       prisma.settlement.findMany({ where: { groupId: group.id } }),
     ])
 
-    // Group expenses by their individual currency
     const expensesByCurrency: Record<string, typeof expenses> = {}
     for (const exp of expenses) {
       const cur = (exp as { currency?: string }).currency ?? group.currency
@@ -44,28 +33,17 @@ export async function GET(req: NextRequest) {
     }
 
     for (const [currency, currencyExpenses] of Object.entries(expensesByCurrency)) {
-      // Apply settlements that match this currency
       const settlementsForCurrency = settlements.filter(
         (s) => ((s as { currency?: string }).currency ?? group.currency) === currency
       )
       const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
       const { oweCents, owedCents } = getUserTotals(balanceCents, user.id)
 
-      const oweDisplay = centsToDisplay(oweCents)
-      const owedDisplay = centsToDisplay(owedCents)
-
-      totalOwe += await convertDisplayAmount(oweDisplay, currency, displayCurrency)
-      totalOwed += await convertDisplayAmount(owedDisplay, currency, displayCurrency)
+      if (!perCurrency[currency]) perCurrency[currency] = { owe: 0, owed: 0 }
+      perCurrency[currency].owe += centsToDisplay(oweCents)
+      perCurrency[currency].owed += centsToDisplay(owedCents)
     }
   }
 
-  totalOwe = roundDisplayAmount(totalOwe, displayCurrency)
-  totalOwed = roundDisplayAmount(totalOwed, displayCurrency)
-
-  return Response.json({
-    currency: displayCurrency,
-    totalOwed,
-    totalOwe,
-    net: roundDisplayAmount(totalOwed - totalOwe, displayCurrency),
-  })
+  return Response.json({ perCurrency })
 }
