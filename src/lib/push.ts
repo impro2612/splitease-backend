@@ -23,6 +23,9 @@ export async function sendPushNotification(
         title,
         body,
         data: data ?? {},
+        priority: "high",      // FCM high priority — wakes device immediately
+        channelId: "default",  // Android notification channel
+        ttl: 604800,           // 7-day TTL so queued notifications still deliver
       }),
     })
     const json = await res.json()
