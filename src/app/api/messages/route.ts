@@ -61,3 +61,21 @@ export async function POST(req: NextRequest) {
 
   return Response.json(message, { status: 201 })
 }
+
+// DELETE /api/messages — soft-delete own messages by ID
+export async function DELETE(req: NextRequest) {
+  const user = await getSessionUser(req)
+  if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  const { ids } = await req.json()
+  if (!Array.isArray(ids) || ids.length === 0) {
+    return Response.json({ error: "ids required" }, { status: 400 })
+  }
+
+  await prisma.message.updateMany({
+    where: { id: { in: ids }, senderId: user.id },
+    data: { deleted: true },
+  })
+
+  return Response.json({ ok: true })
+}
