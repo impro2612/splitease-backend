@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { pusherServer } from "@/lib/pusher"
 
 // GET /api/blocks — list users blocked by the current user
 export async function GET(req: NextRequest) {
@@ -44,6 +45,9 @@ export async function POST(req: NextRequest) {
     update: {},
     create: { id: crypto.randomUUID(), blockerId: user.id, blockedId },
   })
+
+  // Notify the blocked user so their friends list refreshes in real-time
+  await pusherServer.trigger(`private-user-${blockedId}`, "friend-update", { action: "removed" }).catch(() => {})
 
   return Response.json({ ok: true })
 }
