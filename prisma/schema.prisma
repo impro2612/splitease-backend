@@ -15,6 +15,7 @@ model User {
   phoneNormalized String? @unique
   emailVerified DateTime?
   password      String?
+  googleId      String?   @unique
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
