@@ -10,18 +10,28 @@ export async function GET(req: NextRequest) {
   if (q.length < 3) return Response.json([])
 
   const select = { id: true, name: true, email: true, image: true } as const
-  const notMe = { id: { not: user.id } }
+
+  // Get IDs of users blocked by or blocking the current user
+  const blocks = await prisma.block.findMany({
+    where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
+    select: { blockerId: true, blockedId: true },
+  })
+  const blockedIds = new Set(
+    blocks.flatMap((b) => [b.blockerId, b.blockedId]).filter((id) => id !== user.id)
+  )
+
+  const notVisible = { id: { not: user.id, notIn: Array.from(blockedIds) } }
 
   // Three ranked tiers — exact email → prefix → substring
   const [exact, prefix, substring] = await Promise.all([
     prisma.user.findFirst({
-      where: { AND: [notMe, { email: q.toLowerCase() }] },
+      where: { AND: [notVisible, { email: q.toLowerCase() }] },
       select,
     }),
     prisma.user.findMany({
       where: {
         AND: [
-          notMe,
+          notVisible,
           { OR: [{ email: { startsWith: q } }, { name: { startsWith: q } }] },
         ],
       },
@@ -31,7 +41,7 @@ export async function GET(req: NextRequest) {
     prisma.user.findMany({
       where: {
         AND: [
-          notMe,
+          notVisible,
           { OR: [{ email: { contains: q } }, { name: { contains: q } }] },
         ],
       },

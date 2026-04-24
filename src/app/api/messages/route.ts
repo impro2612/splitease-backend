@@ -15,19 +15,28 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Missing fields" }, { status: 400 })
   }
 
-  // Check they are friends
-  const friendship = await prisma.friend.findFirst({
-    where: {
-      status: "ACCEPTED",
-      OR: [
-        { requesterId: user.id, addresseeId: receiverId },
-        { requesterId: receiverId, addresseeId: user.id },
-      ],
-    },
-  })
-  if (!friendship) {
-    return Response.json({ error: "Not friends" }, { status: 403 })
-  }
+  // Check they are friends and neither has blocked the other
+  const [friendship, block] = await Promise.all([
+    prisma.friend.findFirst({
+      where: {
+        status: "ACCEPTED",
+        OR: [
+          { requesterId: user.id, addresseeId: receiverId },
+          { requesterId: receiverId, addresseeId: user.id },
+        ],
+      },
+    }),
+    prisma.block.findFirst({
+      where: {
+        OR: [
+          { blockerId: user.id, blockedId: receiverId },
+          { blockerId: receiverId, blockedId: user.id },
+        ],
+      },
+    }),
+  ])
+  if (!friendship) return Response.json({ error: "Not friends" }, { status: 403 })
+  if (block) return Response.json({ error: "Blocked" }, { status: 403 })
 
   // Upsert by clientId to handle retries
   const message = await prisma.message.upsert({
