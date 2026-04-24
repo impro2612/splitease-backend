@@ -16,11 +16,11 @@ export async function GET(req: NextRequest) {
     where: { OR: [{ blockerId: user.id }, { blockedId: user.id }] },
     select: { blockerId: true, blockedId: true },
   })
-  const blockedIds = new Set(
-    blocks.flatMap((b) => [b.blockerId, b.blockedId]).filter((id) => id !== user.id)
-  )
+  const blockedIds: string[] = blocks
+    .flatMap((b) => [b.blockerId, b.blockedId])
+    .filter((id): id is string => id !== user.id)
 
-  const notVisible = { id: { not: user.id, notIn: Array.from(blockedIds) } }
+  const notVisible = { id: { not: user.id, notIn: blockedIds } }
 
   // Three ranked tiers — exact email → prefix → substring
   const [exact, prefix, substring] = await Promise.all([
