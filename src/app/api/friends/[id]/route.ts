@@ -68,5 +68,9 @@ export async function DELETE(
     data: { status: "REMOVED" },
   })
 
+  // Notify both parties so their friends lists update instantly
+  const otherId = friend.requesterId === user.id ? friend.addresseeId : friend.requesterId
+  await pusherServer.trigger(`private-user-${otherId}`, "friend-update", { action: "removed" }).catch(() => {})
+
   return Response.json({ success: true })
 }
