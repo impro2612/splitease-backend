@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 export async function GET(req: NextRequest) {
@@ -87,6 +88,11 @@ export async function POST(req: NextRequest) {
       where: { id: addresseeId },
       select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
     })
+    // Real-time: tell addressee they have a new incoming request
+    await pusherServer.trigger(`private-user-${addresseeId}`, "friend-request", {
+      from: user.id,
+    }).catch(() => {})
+
     if (addressee) {
       await notifyUsers([addressee], "New friend request", `${getDisplayName(user)} sent you a friend request.`, {
         type: "friend_request",

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 export async function PATCH(
@@ -20,6 +21,13 @@ export async function PATCH(
 
   if (action === "accept") {
     await prisma.friend.update({ where: { id }, data: { status: "ACCEPTED" } })
+
+    // Real-time: notify both parties so their lists update instantly
+    await Promise.all([
+      pusherServer.trigger(`private-user-${friend.requesterId}`, "friend-update", { action: "accepted" }).catch(() => {}),
+      pusherServer.trigger(`private-user-${user.id}`, "friend-update", { action: "accepted" }).catch(() => {}),
+    ])
+
     const requester = await prisma.user.findUnique({
       where: { id: friend.requesterId },
       select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
@@ -33,6 +41,8 @@ export async function PATCH(
     }
   } else if (action === "reject") {
     await prisma.friend.update({ where: { id }, data: { status: "REJECTED" } })
+    // Notify requester their request was declined
+    await pusherServer.trigger(`private-user-${friend.requesterId}`, "friend-update", { action: "rejected" }).catch(() => {})
   }
 
   return Response.json({ success: true })
