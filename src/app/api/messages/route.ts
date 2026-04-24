@@ -73,7 +73,10 @@ export async function DELETE(req: NextRequest) {
   }
 
   await prisma.message.updateMany({
-    where: { id: { in: ids }, senderId: user.id },
+    where: {
+      id: { in: ids },
+      OR: [{ senderId: user.id }, { receiverId: user.id }],
+    },
     data: { deleted: true },
   })
 
