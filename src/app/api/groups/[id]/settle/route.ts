@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { buildBalanceMap, getPairwiseNetCents, centsToDisplay } from "@/lib/balance"
+import { buildBalanceMap, getPairwiseNetCents, getNetPerPerson, simplifyDebts, centsToDisplay } from "@/lib/balance"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 export async function POST(
@@ -38,10 +38,10 @@ export async function POST(
       return Response.json({ error: "Recipient is not a member of this group" }, { status: 400 })
     }
 
-    // Load group to determine default currency
+    // Load group to determine default currency and smart debts mode
     const group = await prisma.group.findUnique({
       where: { id: groupId },
-      select: { currency: true, name: true, emoji: true },
+      select: { currency: true, name: true, emoji: true, smartDebtsEnabled: true },
     })
     const defaultCurrency = group?.currency ?? "USD"
     const settleCurrency = reqCurrency ?? defaultCurrency
@@ -70,24 +70,32 @@ export async function POST(
       (s) => ((s as { currency?: string }).currency ?? defaultCurrency) === settleCurrency
     )
 
-    const balanceCents = buildBalanceMap(currencyExpenses, currencySettlements, true)
-    const netDebtCents = getPairwiseNetCents(balanceCents, user.id, toUserId)
+    let cappedCents: number
 
-    if (netDebtCents <= 0) {
-      return Response.json({ error: "You do not owe this person anything in this currency" }, { status: 400 })
+    if (group?.smartDebtsEnabled) {
+      // Validate against simplified (smart) debts
+      const netPerPerson = getNetPerPerson(currencyExpenses, currencySettlements, true)
+      const simplified = simplifyDebts(netPerPerson)
+      const entry = simplified.find((e) => e.fromUserId === user.id && e.toUserId === toUserId)
+      if (!entry || entry.amountCents <= 0) {
+        return Response.json({ error: "No smart debt found between you and this person" }, { status: 400 })
+      }
+      cappedCents = Math.min(Math.round(numAmount * 100), entry.amountCents)
+    } else {
+      const balanceCents = buildBalanceMap(currencyExpenses, currencySettlements, true)
+      const netDebtCents = getPairwiseNetCents(balanceCents, user.id, toUserId)
+      if (netDebtCents <= 0) {
+        return Response.json({ error: "You do not owe this person anything in this currency" }, { status: 400 })
+      }
+      cappedCents = Math.min(Math.round(numAmount * 100), netDebtCents)
     }
-
-    const netDebt = centsToDisplay(netDebtCents)
-    // Cap settlement to actual outstanding debt, store as cents
-    const cappedAmount = Math.min(numAmount, netDebt)
-    const cappedCents = Math.round(cappedAmount * 100)
 
     const settlement = await prisma.settlement.create({
       data: {
         groupId,
         fromUserId: user.id,
         toUserId,
-        amount: cappedCents,
+        amount: cappedCents,        // stored in cents
         currency: settleCurrency,
         note,
       },

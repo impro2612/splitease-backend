@@ -145,3 +145,72 @@ export function getPairwiseNetCents(
   const owedByTo = balances[toUserId]?.[fromUserId] ?? 0
   return owedByFrom - owedByTo
 }
+
+/**
+ * Computes net balance in cents per person across all expenses and settlements.
+ * Positive = gets money back. Negative = owes money.
+ * Settlements are applied as net adjustments (not pairwise), so cross-pair
+ * smart-debt settlements reduce the correct net balances.
+ */
+export function getNetPerPerson(
+  expenses: ExpenseForBalance[],
+  settlements: SettlementForBalance[],
+  amountsAreInCents = false
+): Map<string, number> {
+  const net = new Map<string, number>()
+  const add = (id: string, delta: number) => net.set(id, (net.get(id) ?? 0) + delta)
+
+  for (const exp of expenses) {
+    for (const split of exp.splits) {
+      if (split.userId === exp.paidById || split.paid) continue
+      const amt = toCents(split.amount, amountsAreInCents)
+      add(split.userId, -amt)
+      add(exp.paidById, +amt)
+    }
+  }
+
+  for (const s of settlements) {
+    const amt = toCents(s.amount, amountsAreInCents)
+    add(s.fromUserId, +amt) // payer's debt shrinks
+    add(s.toUserId, -amt)   // receiver's credit shrinks
+  }
+
+  return net
+}
+
+/**
+ * Greedy debt minimisation algorithm.
+ * Given net-per-person cents (positive = creditor, negative = debtor),
+ * returns the minimum set of transactions that clear all debts.
+ */
+export function simplifyDebts(netPerPerson: Map<string, number>): NetBalance[] {
+  const creditors: { id: string; amount: number }[] = []
+  const debtors: { id: string; amount: number }[] = []
+
+  for (const [id, amount] of netPerPerson) {
+    if (amount > 1) creditors.push({ id, amount })
+    else if (amount < -1) debtors.push({ id, amount: -amount })
+  }
+
+  creditors.sort((a, b) => b.amount - a.amount)
+  debtors.sort((a, b) => b.amount - a.amount)
+
+  const result: NetBalance[] = []
+  let ci = 0
+  let di = 0
+
+  while (ci < creditors.length && di < debtors.length) {
+    const cred = creditors[ci]
+    const debt = debtors[di]
+    const settle = Math.min(cred.amount, debt.amount)
+    if (settle > 0) {
+      result.push({ fromUserId: debt.id, toUserId: cred.id, amountCents: settle })
+    }
+    cred.amount -= settle
+    debt.amount -= settle
+    if (cred.amount <= 1) ci++
+    if (debt.amount <= 1) di++
+  }
+
+  return result
+}

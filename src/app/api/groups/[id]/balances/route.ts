@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { buildBalanceMap, getNetBalances, centsToDisplay } from "@/lib/balance"
+import { buildBalanceMap, getNetBalances, getNetPerPerson, simplifyDebts, centsToDisplay } from "@/lib/balance"
 
 export async function GET(
   req: NextRequest,
@@ -18,7 +18,7 @@ export async function GET(
   if (!member) return Response.json({ error: "Not a member" }, { status: 403 })
 
   const [group, expenses, settlements, members] = await Promise.all([
-    prisma.group.findUnique({ where: { id: groupId }, select: { currency: true } }),
+    prisma.group.findUnique({ where: { id: groupId }, select: { currency: true, smartDebtsEnabled: true } }),
     prisma.expense.findMany({ where: { groupId }, include: { splits: true } }),
     prisma.settlement.findMany({ where: { groupId } }),
     prisma.groupMember.findMany({
@@ -28,6 +28,7 @@ export async function GET(
   ])
 
   const defaultCurrency = group?.currency ?? "USD"
+  const smartDebtsEnabled = group?.smartDebtsEnabled ?? false
   const memberMap = Object.fromEntries(members.map((m) => [m.userId, m.user]))
 
   // Group expenses by their currency
@@ -54,20 +55,28 @@ export async function GET(
     const settlementsForCurrency = settlements.filter(
       (s) => ((s as { currency?: string }).currency ?? defaultCurrency) === currency
     )
-    const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
-    const netBalances = getNetBalances(balanceCents)
-      .map(({ fromUserId, toUserId, amountCents }) => ({
-        fromUserId,
-        toUserId,
-        fromUser: memberMap[fromUserId],
-        toUser: memberMap[toUserId],
-        amount: centsToDisplay(amountCents),
-      }))
+    let netBalances: { fromUserId: string; toUserId: string; amountCents: number }[]
 
-    if (netBalances.length > 0) {
-      result.push({ currency, balances: netBalances })
+    if (smartDebtsEnabled) {
+      const netPerPerson = getNetPerPerson(currencyExpenses, settlementsForCurrency, true)
+      netBalances = simplifyDebts(netPerPerson)
+    } else {
+      const balanceCents = buildBalanceMap(currencyExpenses, settlementsForCurrency, true)
+      netBalances = getNetBalances(balanceCents)
+    }
+
+    const formatted = netBalances.map(({ fromUserId, toUserId, amountCents }) => ({
+      fromUserId,
+      toUserId,
+      fromUser: memberMap[fromUserId],
+      toUser: memberMap[toUserId],
+      amount: centsToDisplay(amountCents),
+    }))
+
+    if (formatted.length > 0) {
+      result.push({ currency, balances: formatted })
     }
   }
 
-  return Response.json(result)
+  return Response.json({ smartDebtsEnabled, balances: result })
 }
