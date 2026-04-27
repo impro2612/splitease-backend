@@ -32,17 +32,14 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const { description, amount, category, paidById, date, currency } = await req.json()
+    const { description, amount, category, paidById, date, currency, splitType: reqSplitType, splits: reqSplits } = await req.json()
 
     const numAmount = amount !== undefined ? parseFloat(amount) : undefined
     if (numAmount !== undefined && (isNaN(numAmount) || numAmount <= 0)) {
       return Response.json({ error: "Invalid amount" }, { status: 400 })
     }
 
-    // expense.amount is in cents; compare in cents to detect real changes
     const newAmountCents = numAmount !== undefined ? Math.round(numAmount * 100) : expense.amount
-    const amountChanged = newAmountCents !== expense.amount
-    const payerChanged = paidById !== undefined && paidById !== expense.paidById
     const newPaidById = paidById ?? expense.paidById
 
     const [groupInfo, groupMembers] = await Promise.all([
@@ -60,63 +57,71 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }),
     ])
 
-    if (!amountChanged && !payerChanged) {
-      // Only metadata changed — preserve splits exactly as-is
-      const updated = await prisma.expense.update({
-        where: { id: expenseId },
-        data: {
-          ...(description !== undefined && { description }),
-          ...(category !== undefined && { category }),
-          ...(date !== undefined && { date: new Date(date) }),
-          ...(currency !== undefined && { currency }),
-        },
-        include: {
-          paidBy: { select: { id: true, name: true, email: true, image: true } },
-          splits: {
-            include: { user: { select: { id: true, name: true, email: true, image: true } } },
-          },
-        },
-      })
-      await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
-      await notifyUsers(
-        groupMembers.map((m) => m.user),
-        `${groupInfo?.emoji ?? "✏️"} Expense updated in ${groupInfo?.name ?? "your group"}`,
-        `${getDisplayName(user)} updated "${updated.description}"`,
-        {
-          type: "expense_updated",
-          groupId,
-          expenseId: updated.id,
-          url: buildAppUrl(`group/${groupId}`),
-        },
-        [user.id]
-      )
-      return Response.json(expenseToApi(updated))
-    }
-
-    // Fetch existing splits (amounts already in cents)
-    const existingSplits = await prisma.expenseSplit.findMany({ where: { expenseId } })
-
     let newSplitData: { userId: string; amount: number; paid: boolean }[]
 
-    if (amountChanged) {
-      // Scale each split proportionally (all values in cents)
-      const oldCents = expense.amount
-      const rawCents = existingSplits.map((s) => Math.floor((s.amount / oldCents) * newAmountCents))
-      const rawSum = rawCents.reduce((a, b) => a + b, 0)
-      let remainder = newAmountCents - rawSum
-
-      newSplitData = existingSplits.map((s, i) => {
-        const extra = remainder > 0 ? 1 : 0
-        if (remainder > 0) remainder--
-        return { userId: s.userId, amount: rawCents[i] + extra, paid: s.userId === newPaidById }
-      })
-    } else {
-      // Only payer changed — keep amounts, just update paid flags
-      newSplitData = existingSplits.map((s) => ({
+    if (reqSplits && Array.isArray(reqSplits) && reqSplits.length > 0) {
+      // Explicit splits provided by client — use them directly
+      const rawData = (reqSplits as { userId: string; amount: number }[]).map((s) => ({
         userId: s.userId,
-        amount: s.amount,
+        amount: Math.round(s.amount * 100),
         paid: s.userId === newPaidById,
       }))
+      // Fix any rounding so totals always sum to newAmountCents
+      const rawSum = rawData.reduce((a, b) => a + b.amount, 0)
+      let remainder = newAmountCents - rawSum
+      newSplitData = rawData.map((s) => {
+        const extra = remainder > 0 ? 1 : remainder < 0 ? -1 : 0
+        if (remainder !== 0) remainder -= extra
+        return { ...s, amount: s.amount + extra }
+      })
+    } else {
+      // No explicit splits — fall back to proportional scaling / paid-flag update
+      const amountChanged = newAmountCents !== expense.amount
+      const payerChanged = paidById !== undefined && paidById !== expense.paidById
+
+      if (!amountChanged && !payerChanged) {
+        const updated = await prisma.expense.update({
+          where: { id: expenseId },
+          data: {
+            ...(description !== undefined && { description }),
+            ...(category !== undefined && { category }),
+            ...(date !== undefined && { date: new Date(date) }),
+            ...(currency !== undefined && { currency }),
+          },
+          include: {
+            paidBy: { select: { id: true, name: true, email: true, image: true } },
+            splits: {
+              include: { user: { select: { id: true, name: true, email: true, image: true } } },
+            },
+          },
+        })
+        await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
+        await notifyUsers(
+          groupMembers.map((m) => m.user),
+          `${groupInfo?.emoji ?? "✏️"} Expense updated in ${groupInfo?.name ?? "your group"}`,
+          `${getDisplayName(user)} updated "${updated.description}"`,
+          { type: "expense_updated", groupId, expenseId: updated.id, url: buildAppUrl(`group/${groupId}`) },
+          [user.id]
+        )
+        return Response.json(expenseToApi(updated))
+      }
+
+      const existingSplits = await prisma.expenseSplit.findMany({ where: { expenseId } })
+      if (amountChanged) {
+        const oldCents = expense.amount
+        const rawCents = existingSplits.map((s) => Math.floor((s.amount / oldCents) * newAmountCents))
+        const rawSum = rawCents.reduce((a, b) => a + b, 0)
+        let remainder = newAmountCents - rawSum
+        newSplitData = existingSplits.map((s, i) => {
+          const extra = remainder > 0 ? 1 : 0
+          if (remainder > 0) remainder--
+          return { userId: s.userId, amount: rawCents[i] + extra, paid: s.userId === newPaidById }
+        })
+      } else {
+        newSplitData = existingSplits.map((s) => ({
+          userId: s.userId, amount: s.amount, paid: s.userId === newPaidById,
+        }))
+      }
     }
 
     await prisma.expenseSplit.deleteMany({ where: { expenseId } })
@@ -125,7 +130,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       where: { id: expenseId },
       data: {
         ...(description !== undefined && { description }),
-        ...(amountChanged && { amount: newAmountCents }),
+        ...(newAmountCents !== expense.amount && { amount: newAmountCents }),
+        ...(reqSplitType !== undefined && { splitType: reqSplitType }),
         ...(category !== undefined && { category }),
         ...(paidById !== undefined && { paidById }),
         ...(date !== undefined && { date: new Date(date) }),
