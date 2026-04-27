@@ -5,7 +5,7 @@ import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
 
 export async function POST(req: NextRequest) {
   try {
-    const { idToken } = await req.json()
+    const { idToken, mode } = await req.json()
     if (!idToken) return Response.json({ error: "idToken required" }, { status: 400 })
 
     // Verify the ID token with Google's public tokeninfo endpoint
@@ -19,21 +19,19 @@ export async function POST(req: NextRequest) {
     const { sub: googleId, email, name, picture: image } = payload
 
     // Find by googleId first, then fall back to matching email
-    // (handles existing email/password users who sign in with Google for first time)
     let user = await prisma.user.findFirst({
       where: { OR: [{ googleId }, { email }] },
     })
 
-    if (user) {
-      if (!user.googleId) {
-        // Link Google account to existing email/password user
-        user = await prisma.user.update({
-          where: { id: user.id },
-          data: { googleId, image: user.image ?? image ?? null },
-        })
+    if (!user) {
+      // Sign-in mode: reject if account doesn't exist
+      if (mode === "signin") {
+        return Response.json(
+          { error: "No account found with this Google account. Please sign up first." },
+          { status: 404 }
+        )
       }
-    } else {
-      // Brand new user — create account (no password needed)
+      // Sign-up mode: create new account
       user = await prisma.user.create({
         data: {
           email,
@@ -41,6 +39,12 @@ export async function POST(req: NextRequest) {
           googleId,
           image: image ?? null,
         },
+      })
+    } else if (!user.googleId) {
+      // Link Google account to existing email/password user
+      user = await prisma.user.update({
+        where: { id: user.id },
+        data: { googleId, image: user.image ?? image ?? null },
       })
     }
 
@@ -56,6 +60,7 @@ export async function POST(req: NextRequest) {
     return Response.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, image: user.image },
+      needsPhone: !user.phoneNormalized,
     })
   } catch (err) {
     console.error("[google-auth]", err)
