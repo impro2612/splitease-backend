@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { logActivity } from "@/lib/activity"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -100,6 +101,13 @@ export async function POST(req: NextRequest) {
         url: buildAppUrl("friends"),
       })
     }
+
+    logActivity({
+      type: "friend_request_sent",
+      actorId: user.id,
+      targetUserId: addresseeId,
+      meta: { toUserName: addressee ? getDisplayName(addressee) : null },
+    })
 
     return Response.json(friend, { status: 201 })
   } catch (err) {

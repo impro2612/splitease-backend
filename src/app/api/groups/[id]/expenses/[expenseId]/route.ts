@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { logActivity } from "@/lib/activity"
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
 
@@ -103,6 +104,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           { type: "expense_updated", groupId, expenseId: updated.id, url: buildAppUrl(`group/${groupId}`) },
           [user.id]
         )
+        logActivity({
+          type: "expense_edited",
+          actorId: user.id,
+          groupId,
+          meta: {
+            expenseId: updated.id,
+            description: updated.description,
+            amount: updated.amount / 100,
+            currency: updated.currency,
+            groupName: groupInfo?.name,
+            groupEmoji: groupInfo?.emoji,
+          },
+        })
         return Response.json(expenseToApi(updated))
       }
 
@@ -159,6 +173,21 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       [user.id]
     )
+    logActivity({
+      type: "expense_edited",
+      actorId: user.id,
+      groupId,
+      meta: {
+        expenseId: updated.id,
+        oldDescription: expense.description,
+        newDescription: updated.description,
+        oldAmount: expense.amount / 100,
+        newAmount: updated.amount / 100,
+        currency: updated.currency,
+        groupName: groupInfo?.name,
+        groupEmoji: groupInfo?.emoji,
+      },
+    })
     return Response.json(expenseToApi(updated))
   } catch (err) {
     console.error(err)
@@ -212,5 +241,17 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     },
     [user.id]
   )
+  logActivity({
+    type: "expense_deleted",
+    actorId: user.id,
+    groupId,
+    meta: {
+      description: expense.description,
+      amount: expense.amount / 100,
+      currency: expense.currency,
+      groupName: groupInfo?.name,
+      groupEmoji: groupInfo?.emoji,
+    },
+  })
   return Response.json({ success: true })
 }

@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { logActivity } from "@/lib/activity"
 
 /** Convert a DB expense (amounts in cents) to the API shape (amounts in dollars). */
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
@@ -164,6 +165,20 @@ export async function POST(
       },
       [user.id]
     )
+
+    logActivity({
+      type: "expense_added",
+      actorId: user.id,
+      groupId,
+      meta: {
+        expenseId: expense.id,
+        description: expense.description,
+        amount: expense.amount / 100,
+        currency: expense.currency,
+        groupName: groupData?.name,
+        groupEmoji: groupData?.emoji,
+      },
+    })
 
     // Return dollars to client
     return Response.json(expenseToApi(expense), { status: 201 })

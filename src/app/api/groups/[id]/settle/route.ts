@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildBalanceMap, getPairwiseNetCents, getNetPerPerson, simplifyDebts, centsToDisplay } from "@/lib/balance"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { logActivity } from "@/lib/activity"
 
 export async function POST(
   req: NextRequest,
@@ -132,6 +133,22 @@ export async function POST(
       },
       [user.id, toUserId]
     )
+
+    logActivity({
+      type: "settlement",
+      actorId: user.id,
+      groupId,
+      targetUserId: toUserId,
+      meta: {
+        settlementId: settlement.id,
+        amount: settlement.amount / 100,
+        currency: settlement.currency,
+        toUserName: recipient ? getDisplayName(recipient) : null,
+        groupName: group?.name,
+        groupEmoji: group?.emoji,
+        note: note ?? null,
+      },
+    })
 
     return Response.json({ ...settlement, amount: settlement.amount / 100 }, { status: 201 })
   } catch (err) {

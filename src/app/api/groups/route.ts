@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { logActivity } from "@/lib/activity"
 
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
 function expenseToApi(e: ExpenseRow) {
@@ -56,6 +57,13 @@ export async function POST(req: NextRequest) {
         members: { create: { userId: user.id, role: "ADMIN" } },
       },
       include: { members: { include: { user: true } } },
+    })
+
+    logActivity({
+      type: "group_created",
+      actorId: user.id,
+      groupId: group.id,
+      meta: { groupName: group.name, groupEmoji: group.emoji },
     })
 
     return Response.json(group, { status: 201 })

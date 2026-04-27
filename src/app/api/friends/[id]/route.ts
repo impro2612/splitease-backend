@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { logActivity } from "@/lib/activity"
 
 export async function PATCH(
   req: NextRequest,
@@ -27,6 +28,13 @@ export async function PATCH(
       pusherServer.trigger(`private-user-${friend.requesterId}`, "friend-update", { action: "accepted" }).catch(() => {}),
       pusherServer.trigger(`private-user-${user.id}`, "friend-update", { action: "accepted" }).catch(() => {}),
     ])
+
+    logActivity({
+      type: "friend_accepted",
+      actorId: user.id,
+      targetUserId: friend.requesterId,
+      meta: { fromUserId: friend.requesterId },
+    })
 
     const requester = await prisma.user.findUnique({
       where: { id: friend.requesterId },

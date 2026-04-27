@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { logActivity } from "@/lib/activity"
 
 export async function PATCH(
   req: NextRequest,
@@ -21,10 +22,22 @@ export async function PATCH(
     return Response.json({ error: "enabled must be a boolean" }, { status: 400 })
   }
 
+  const groupInfo = await prisma.group.findUnique({
+    where: { id: groupId },
+    select: { name: true, emoji: true },
+  })
+
   const group = await prisma.group.update({
     where: { id: groupId },
     data: { smartDebtsEnabled: enabled },
     select: { smartDebtsEnabled: true },
+  })
+
+  logActivity({
+    type: "smart_debts_toggled",
+    actorId: user.id,
+    groupId,
+    meta: { enabled, groupName: groupInfo?.name, groupEmoji: groupInfo?.emoji },
   })
 
   return Response.json({ smartDebtsEnabled: group.smartDebtsEnabled })

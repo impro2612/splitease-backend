@@ -37,6 +37,8 @@ model User {
   pushDevices           PushDevice[]
   blockedUsers          Block[]       @relation("Blocker")
   blockedBy             Block[]       @relation("Blocked")
+  actorActivities       Activity[]    @relation("ActivityActor")
+  targetActivities      Activity[]    @relation("ActivityTarget")
 }
 
 model PushDevice {
@@ -112,6 +114,25 @@ model Group {
   expenses    Expense[]
   settlements Settlement[]
   invitations Invitation[]
+  activities  Activity[]
+}
+
+model Activity {
+  id           String   @id @default(cuid())
+  type         String
+  actorId      String
+  targetUserId String?
+  groupId      String?
+  meta         String   @default("{}")
+  createdAt    DateTime @default(now())
+
+  actor      User   @relation("ActivityActor", fields: [actorId], references: [id], onDelete: Cascade)
+  targetUser User?  @relation("ActivityTarget", fields: [targetUserId], references: [id], onDelete: SetNull)
+  group      Group? @relation(fields: [groupId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([groupId, createdAt])
 }
 
 model GroupMember {

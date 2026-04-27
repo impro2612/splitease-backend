@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { logActivity } from "@/lib/activity"
 
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
 function expenseToApi(e: ExpenseRow) {
@@ -75,21 +76,15 @@ export async function PATCH(
     return Response.json({ error: "Only admins can edit groups" }, { status: 403 })
   }
 
+  const existingGroup = await prisma.group.findUnique({
+    where: { id },
+    select: { name: true, emoji: true, currency: true, _count: { select: { expenses: true, settlements: true } } },
+  })
+  if (!existingGroup) return Response.json({ error: "Group not found" }, { status: 404 })
+
   if (currency !== undefined) {
-    const existing = await prisma.group.findUnique({
-      where: { id },
-      select: {
-        currency: true,
-        _count: { select: { expenses: true, settlements: true } },
-      },
-    })
-
-    if (!existing) {
-      return Response.json({ error: "Group not found" }, { status: 404 })
-    }
-
-    const hasMoneyActivity = existing._count.expenses > 0 || existing._count.settlements > 0
-    if (hasMoneyActivity && currency !== existing.currency) {
+    const hasMoneyActivity = existingGroup._count.expenses > 0 || existingGroup._count.settlements > 0
+    if (hasMoneyActivity && currency !== existingGroup.currency) {
       return Response.json(
         { error: "Cannot change currency after expenses or settlements exist" },
         { status: 400 }
@@ -107,6 +102,15 @@ export async function PATCH(
       ...(currency !== undefined && { currency }),
     },
   })
+
+  if (name !== undefined && name !== existingGroup.name) {
+    logActivity({
+      type: "group_renamed",
+      actorId: user.id,
+      groupId: id,
+      meta: { oldName: existingGroup.name, newName: group.name, groupEmoji: group.emoji },
+    })
+  }
 
   return Response.json(group)
 }
@@ -127,6 +131,19 @@ export async function DELETE(
   if (!member || member.role !== "ADMIN") {
     return Response.json({ error: "Only admins can delete groups" }, { status: 403 })
   }
+
+  const groupToDelete = await prisma.group.findUnique({
+    where: { id },
+    select: { name: true, emoji: true },
+  })
+
+  // Log before delete so groupId relation is still valid (onDelete: SetNull keeps the row)
+  await logActivity({
+    type: "group_deleted",
+    actorId: user.id,
+    groupId: id,
+    meta: { groupName: groupToDelete?.name, groupEmoji: groupToDelete?.emoji },
+  })
 
   await prisma.group.delete({ where: { id } })
   return Response.json({ success: true })
