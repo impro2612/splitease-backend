@@ -4,8 +4,8 @@ import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
 
 // POST /api/users/lookup-phones
-// Body: { phones: string[] }  — normalized phone numbers
-// Returns: { [phone]: { id, name, email, image } }  — only matched ones
+// Body: { phones: string[] }
+// Returns: { [sentPhone]: { id, name, email, image } } — keyed by what was sent
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -13,7 +13,6 @@ export async function POST(req: NextRequest) {
   const { phones } = await req.json()
   if (!Array.isArray(phones) || phones.length === 0) return Response.json({})
 
-  // Limit to 500 to avoid abuse
   const limited = phones
     .slice(0, 500)
     .map((phone) => normalizePhone(String(phone ?? "")))
@@ -21,19 +20,37 @@ export async function POST(req: NextRequest) {
 
   if (limited.length === 0) return Response.json({})
 
+  // Numbers with country code (+...) → exact match
+  // Numbers without + → suffix match (contact saved without country code)
+  const withCC = limited.filter((p) => p.startsWith("+"))
+  const localOnly = limited.filter((p) => !p.startsWith("+") && p.length >= 6)
+
+  const orConditions: any[] = []
+  if (withCC.length > 0) orConditions.push({ phoneNormalized: { in: withCC } })
+  for (const local of localOnly) orConditions.push({ phoneNormalized: { endsWith: local } })
+
+  if (orConditions.length === 0) return Response.json({})
+
   const users = await prisma.user.findMany({
-    where: {
-      phoneNormalized: { in: limited },
-      id: { not: user.id },
-    },
+    where: { OR: orConditions, id: { not: user.id } },
     select: { id: true, name: true, email: true, image: true, phoneNormalized: true },
   })
 
-  // Return as a map: phone -> user info
+  // Key the result by what the mobile sent so the client lookup works without changes
   const result: Record<string, { id: string; name: string | null; email: string; image: string | null }> = {}
   for (const u of users) {
-    if (u.phoneNormalized) {
-      result[u.phoneNormalized] = { id: u.id, name: u.name, email: u.email, image: u.image }
+    if (!u.phoneNormalized) continue
+    const info = { id: u.id, name: u.name, email: u.email, image: u.image }
+    // Exact match
+    if (limited.includes(u.phoneNormalized)) {
+      result[u.phoneNormalized] = info
+    }
+    // Suffix match — find which local-only number this DB entry ends with
+    for (const local of localOnly) {
+      if (u.phoneNormalized.endsWith(local)) {
+        result[local] = info
+        break
+      }
     }
   }
 
