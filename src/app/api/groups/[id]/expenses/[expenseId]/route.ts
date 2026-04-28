@@ -115,6 +115,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             currency: updated.currency,
             groupName: groupInfo?.name,
             groupEmoji: groupInfo?.emoji,
+            oldDescription: expense.description !== updated.description ? expense.description : undefined,
+            newDescription: expense.description !== updated.description ? updated.description : undefined,
+            oldDate: date !== undefined && expense.date?.toISOString() !== updated.date?.toISOString() ? expense.date?.toISOString() : undefined,
+            newDate: date !== undefined && expense.date?.toISOString() !== updated.date?.toISOString() ? updated.date?.toISOString() : undefined,
+            oldCurrency: expense.currency !== updated.currency ? expense.currency : undefined,
+            newCurrency: expense.currency !== updated.currency ? updated.currency : undefined,
           },
         })
         return Response.json(expenseToApi(updated))
@@ -173,19 +179,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       },
       [user.id]
     )
+    const oldPaidByMember = groupMembers.find(m => m.userId === expense.paidById)
+    const newPaidByMember = groupMembers.find(m => m.userId === updated.paidById)
     logActivity({
       type: "expense_edited",
       actorId: user.id,
       groupId,
       meta: {
         expenseId: updated.id,
-        oldDescription: expense.description,
-        newDescription: updated.description,
-        oldAmount: expense.amount / 100,
-        newAmount: updated.amount / 100,
+        description: updated.description,
         currency: updated.currency,
         groupName: groupInfo?.name,
         groupEmoji: groupInfo?.emoji,
+        oldDescription: expense.description !== updated.description ? expense.description : undefined,
+        newDescription: expense.description !== updated.description ? updated.description : undefined,
+        oldAmount: expense.amount !== updated.amount ? expense.amount / 100 : undefined,
+        newAmount: expense.amount !== updated.amount ? updated.amount / 100 : undefined,
+        oldPaidByName: expense.paidById !== updated.paidById ? (oldPaidByMember?.user?.name ?? null) : undefined,
+        newPaidByName: expense.paidById !== updated.paidById ? (newPaidByMember?.user?.name ?? null) : undefined,
+        oldDate: expense.date?.toISOString() !== updated.date?.toISOString() ? expense.date?.toISOString() : undefined,
+        newDate: expense.date?.toISOString() !== updated.date?.toISOString() ? updated.date?.toISOString() : undefined,
+        oldCurrency: expense.currency !== updated.currency ? expense.currency : undefined,
+        newCurrency: expense.currency !== updated.currency ? updated.currency : undefined,
       },
     })
     return Response.json(expenseToApi(updated))
