@@ -1,0 +1,135 @@
+// Parses bank transaction alert emails into structured transaction data
+
+export interface ParsedTransaction {
+  amount: number       // in paise
+  type: "debit" | "credit"
+  rawDescription: string
+  date: Date
+  bank: string
+}
+
+interface BankPattern {
+  name: string
+  senders: string[]
+  debitRegex: RegExp
+  creditRegex: RegExp
+  amountRegex: RegExp
+  dateRegex?: RegExp
+  descRegex?: RegExp
+}
+
+const BANK_PATTERNS: BankPattern[] = [
+  {
+    name: "HDFC",
+    senders: ["alerts@hdfcbank.net", "hdfcbank.net"],
+    debitRegex: /(?:debited|debit|spent|paid)/i,
+    creditRegex: /(?:credited|credit|received)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:at|to|from|Info:|for)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\s+Avl|\s+Bal|\.)/i,
+  },
+  {
+    name: "ICICI",
+    senders: ["autoreply@icicibank.com", "icicibank.com"],
+    debitRegex: /(?:debited|debit|spent)/i,
+    creditRegex: /(?:credited|credit|received)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:at|to|Info:)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\.|,)/i,
+  },
+  {
+    name: "SBI",
+    senders: ["sbialert@sbi.co.in", "sbi.co.in"],
+    debitRegex: /(?:debited|debit|withdrawn)/i,
+    creditRegex: /(?:credited|credit|deposited)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:to|from|at)\s+([A-Za-z0-9 *\-/]+?)(?:\s+Ref|\s+on|\.)/i,
+  },
+  {
+    name: "Axis",
+    senders: ["axis.alerts@axisbank.com", "axisbank.com"],
+    debitRegex: /(?:debited|debit|spent)/i,
+    creditRegex: /(?:credited|credit)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:at|to)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\.|,)/i,
+  },
+  {
+    name: "Kotak",
+    senders: ["alerts@kotak.com", "kotak.com"],
+    debitRegex: /(?:debited|debit|spent)/i,
+    creditRegex: /(?:credited|credit)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:at|to)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\.|,)/i,
+  },
+  {
+    name: "PhonePe",
+    senders: ["noreply@phonepe.com", "phonepe.com"],
+    debitRegex: /(?:debited|paid|sent)/i,
+    creditRegex: /(?:credited|received|got)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:to|from|paid to)\s+([A-Za-z0-9 .]+?)(?:\s+on|\s+via|\.|,)/i,
+  },
+  {
+    name: "GPay",
+    senders: ["noreply-pay@google.com", "google.com"],
+    debitRegex: /(?:paid|sent|debited)/i,
+    creditRegex: /(?:received|credited)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:to|from)\s+([A-Za-z0-9 .]+?)(?:\s+on|\s+using|\.|,)/i,
+  },
+  {
+    name: "Paytm",
+    senders: ["noreply@paytm.com", "paytm.com"],
+    debitRegex: /(?:debited|paid|spent)/i,
+    creditRegex: /(?:credited|received)/i,
+    amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
+    descRegex: /(?:to|from|at)\s+([A-Za-z0-9 .]+?)(?:\s+on|\.|,)/i,
+  },
+]
+
+function parseAmount(str: string): number {
+  return Math.round(parseFloat(str.replace(/,/g, "")) * 100)
+}
+
+export function detectBank(from: string): BankPattern | null {
+  const fromLower = from.toLowerCase()
+  return BANK_PATTERNS.find((p) => p.senders.some((s) => fromLower.includes(s))) ?? null
+}
+
+export function parseTransactionEmail(
+  from: string,
+  subject: string,
+  body: string,
+  receivedDate: Date
+): ParsedTransaction | null {
+  const bank = detectBank(from)
+  if (!bank) return null
+
+  const text = `${subject} ${body}`.replace(/\n/g, " ").replace(/\s+/g, " ")
+
+  const amountMatch = text.match(bank.amountRegex)
+  if (!amountMatch) return null
+
+  const amount = parseAmount(amountMatch[1])
+  if (amount <= 0 || amount > 100_000_000_00) return null // sanity check (>₹10cr suspicious)
+
+  const isDebit = bank.debitRegex.test(text)
+  const isCredit = bank.creditRegex.test(text)
+  if (!isDebit && !isCredit) return null
+  const type: "debit" | "credit" = isDebit ? "debit" : "credit"
+
+  let rawDescription = ""
+  if (bank.descRegex) {
+    const m = text.match(bank.descRegex)
+    if (m) rawDescription = m[1].trim()
+  }
+  if (!rawDescription) rawDescription = subject.slice(0, 80)
+
+  // Try to extract date from email body, fall back to received date
+  let date = receivedDate
+  const dateMatch = text.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/)?.[1]
+  if (dateMatch) {
+    const parsed = new Date(dateMatch)
+    if (!isNaN(parsed.getTime())) date = parsed
+  }
+
+  return { amount, type, rawDescription, date, bank: bank.name }
+}

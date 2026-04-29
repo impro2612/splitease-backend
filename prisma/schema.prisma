@@ -39,6 +39,9 @@ model User {
   blockedBy             Block[]       @relation("Blocked")
   actorActivities       Activity[]    @relation("ActivityActor")
   targetActivities      Activity[]    @relation("ActivityTarget")
+  personalTransactions  PersonalTransaction[]
+  personalBudgets       PersonalBudget[]
+  gmailConnection       GmailConnection?
 }
 
 model PushDevice {
@@ -249,4 +252,52 @@ model Invitation {
 
   group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   invitedBy User  @relation("InvitedBy", fields: [invitedById], references: [id])
+}
+
+model PersonalTransaction {
+  id             String   @id @default(cuid())
+  userId         String
+  date           DateTime
+  amount         Int      // in paise (₹1 = 100)
+  type           String   // "debit" | "credit"
+  description    String   // normalized merchant name
+  rawDescription String   // original messy description
+  category       String   @default("Miscellaneous")
+  bank           String?  // "HDFC" | "ICICI" | "SBI" etc
+  source         String   // "gmail" | "csv" | "pdf"
+  hash           String   @unique // dedup: sha1(userId+date+amount+rawDesc)
+  createdAt      DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, date])
+  @@index([userId, category])
+  @@index([userId, type])
+}
+
+model PersonalBudget {
+  id        String   @id @default(cuid())
+  userId    String
+  category  String
+  amount    Int      // monthly limit in paise
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, category])
+}
+
+model GmailConnection {
+  id           String    @id @default(cuid())
+  userId       String    @unique
+  email        String
+  refreshToken String
+  accessToken  String?
+  expiresAt    DateTime?
+  lastSyncAt   DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
