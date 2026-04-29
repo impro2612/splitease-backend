@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server"
-import { Prisma } from "@prisma/client"
+import { Prisma } from "@/generated/prisma/client"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
