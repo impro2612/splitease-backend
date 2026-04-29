@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import { Prisma } from "@prisma/client"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   const withCC = limited.filter((p) => p.startsWith("+"))
   const localOnly = limited.filter((p) => !p.startsWith("+") && p.length >= 6)
 
-  const orConditions: any[] = []
+  const orConditions: Prisma.UserWhereInput[] = []
   if (withCC.length > 0) orConditions.push({ phoneNormalized: { in: withCC } })
   for (const local of localOnly) orConditions.push({ phoneNormalized: { endsWith: local } })
 
