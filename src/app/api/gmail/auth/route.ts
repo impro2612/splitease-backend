@@ -1,10 +1,24 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import * as jose from "jose"
+import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
 
 const SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 export async function GET(req: NextRequest) {
-  const user = await getSessionUser(req)
+  // Primary: Authorization header (API calls). Fallback: ?token= query param (browser redirect from mobile app).
+  let user = await getSessionUser(req)
+  if (!user) {
+    const qToken = new URL(req.url).searchParams.get("token")
+    if (qToken) {
+      try {
+        const { payload } = await jose.jwtVerify(qToken, MOBILE_JWT_SECRET)
+        if (payload.id && payload.email) {
+          user = { id: payload.id as string, email: payload.email as string, name: payload.name as string | null }
+        }
+      } catch { /* invalid token */ }
+    }
+  }
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const clientId = process.env.GOOGLE_CLIENT_ID
