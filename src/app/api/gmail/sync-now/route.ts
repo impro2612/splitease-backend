@@ -6,10 +6,10 @@ import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithA
 
 // Broad domain-based query — catches all sender addresses from each bank/UPI app,
 // combined with transaction keywords so promotional emails are excluded.
-// Search only by subject keywords — more reliable than from: domain filters
-// which can silently return 0 when the query is too long or domain doesn't match exactly.
-// The email parser's detectBank() will filter out non-bank emails after fetch.
-const BANK_QUERY = "(subject:debited OR subject:credited OR subject:\"has been debited\" OR subject:\"has been credited\" OR subject:\"used for a transaction\" OR subject:\"UPI transaction\" OR subject:\"NEFT\" OR subject:\"IMPS\" OR subject:\"transaction alert\")"
+// Full-text search across subject + body — bank emails put "debited"/"credited"
+// in the body, not always the subject (e.g. HDFC subject is just "HDFC Bank InstaAlerts").
+// Using known bank domains as the primary filter so we don't fetch random emails.
+const BANK_QUERY = `(from:hdfcbank.bank.in OR from:icici.bank.in OR from:sbi.bank.in OR from:axisbank.bank.in OR from:kotak.bank.in OR from:yesbank.bank.in OR from:indusind.bank.in OR from:pnb.bank.in OR from:idfcfirstbank.bank.in OR from:federalbank.bank.in OR from:rbl.bank.in OR from:idbi.bank.in OR from:bob.bank.in OR from:hdfcbank.net OR from:icicibank.com OR from:sbi.co.in OR from:axisbank.com OR from:kotak.com OR from:phonepe.com OR from:paytm.com OR from:google.com)`
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {

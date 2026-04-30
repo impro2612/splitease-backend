@@ -35,7 +35,7 @@ const TRANSACTION_SUBJECT_KEYWORDS = [
   "UPI", "NEFT", "IMPS", "RTGS",
 ].map((k) => `subject:${k}`).join(" OR ")
 
-const BANK_QUERY = `(${BANK_SENDER_DOMAINS}) (${TRANSACTION_SUBJECT_KEYWORDS})`
+const BANK_QUERY = `(${BANK_SENDER_DOMAINS})`
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
