@@ -41,16 +41,36 @@ function base64Decode(str: string): string {
   return Buffer.from(str.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf-8")
 }
 
+function stripHtml(html: string): string {
+  return html
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/\s+/g, " ")
+    .trim()
+}
+
 function extractBody(payload: Record<string, unknown>): string {
   if (payload.body && (payload.body as { size: number }).size > 0) {
     return base64Decode((payload.body as { data: string }).data ?? "")
   }
   const parts = (payload.parts as Record<string, unknown>[] | undefined) ?? []
+  // Prefer plain text
   for (const part of parts) {
     if (part.mimeType === "text/plain") {
       return base64Decode(((part.body as { data?: string }) ?? {}).data ?? "")
     }
   }
+  // Fall back to HTML (strip tags) — GPay, PhonePe send HTML-only
+  for (const part of parts) {
+    if (part.mimeType === "text/html") {
+      return stripHtml(base64Decode(((part.body as { data?: string }) ?? {}).data ?? ""))
+    }
+  }
+  // Recurse into nested multipart/* containers
   for (const part of parts) {
     const nested = extractBody(part as Record<string, unknown>)
     if (nested) return nested
