@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import Anthropic from "@anthropic-ai/sdk"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
 // GET /api/transactions/insights?month=2026-04
 export async function GET(req: NextRequest) {
@@ -87,29 +87,22 @@ export async function GET(req: NextRequest) {
 
   // AI summary
   let aiSummary = ""
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.GEMINI_API_KEY) {
     try {
-      const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-      const summaryData = {
-        month: `${y}-${String(m).padStart(2, "0")}`,
-        totalIncome: totalIncome / 100,
-        totalExpense: totalExpense / 100,
-        topCategories: topCategories.map((c) => `${c.category}: ₹${c.amount.toFixed(0)}`),
-        spendingLeaks: spendingLeaks.map((l) => `${l.description} × ${l.count} = ₹${l.total.toFixed(0)}`),
-        budgetAlerts: budgetAlerts.map((a) => `${a.category} over by ₹${a.overspent.toFixed(0)}`),
-      }
-
-      const msg = await client.messages.create({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 300,
-        messages: [{
-          role: "user",
-          content: `You are a friendly personal finance advisor for an Indian user. Based on this month's spending data, give 2-3 short, actionable, specific insights. Be direct and conversational. Use ₹ for amounts. No bullet points, just 2-3 short sentences.
-
-Data: ${JSON.stringify(summaryData)}`,
-        }],
+      const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+      const model = genAI.getGenerativeModel({
+        model: "gemini-1.5-flash",
+        generationConfig: { maxOutputTokens: 300, temperature: 0.3 },
       })
-      aiSummary = (msg.content[0] as { text: string }).text
+
+      const prompt = `Personal finance advisor for Indian user. 2-3 short actionable sentences, no bullet points, use ₹.
+Month:${y}-${String(m).padStart(2,"0")} Income:₹${(totalIncome/100).toFixed(0)} Expense:₹${(totalExpense/100).toFixed(0)}
+Top:${topCategories.map((c)=>`${c.category}₹${c.amount.toFixed(0)}`).join(",")}
+Leaks:${spendingLeaks.map((l)=>`${l.description}×${l.count}=₹${l.total.toFixed(0)}`).join(",")||"none"}
+Alerts:${budgetAlerts.map((a)=>`${a.category}+₹${a.overspent.toFixed(0)}`).join(",")||"none"}`
+
+      const result = await model.generateContent(prompt)
+      aiSummary = result.response.text().trim()
     } catch { aiSummary = "" }
   }
 

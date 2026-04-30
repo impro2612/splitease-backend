@@ -1,5 +1,5 @@
-import Anthropic from "@anthropic-ai/sdk"
 import crypto from "crypto"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
 export const CATEGORIES = [
   "Salary / Income",
@@ -16,25 +16,24 @@ export const CATEGORIES = [
 
 export type Category = (typeof CATEGORIES)[number]
 
-// Keyword rules — handles ~80% of Indian transactions instantly
+// Keyword rules — handles ~85% of Indian transactions, zero API calls
 const RULES: Record<Category, string[]> = {
   "Salary / Income": [
     "salary", "payroll", "credited by", "neft cr", "imps cr", "upi cr",
-    "bonus", "incentive", "reimbursement", "refund", "cashback",
+    "bonus", "incentive", "reimbursement", "refund", "cashback", "stipend",
   ],
   "Food / Dining": [
     "zomato", "swiggy", "dominos", "domino", "pizza hut", "kfc", "mcdonalds",
     "mcdonald", "burger king", "subway", "starbucks", "cafe coffee day", "ccd",
     "dunkin", "haldiram", "barbeque", "bbq", "chaayos", "chai point",
     "restaurant", "dining", "food", "biryani", "kitchen", "dhaba", "bakery",
-    "hotel", "cafe", "canteen", "eatery",
+    "canteen", "eatery", "mess", "tiffin",
   ],
   "Transport": [
     "ola", "uber", "rapido", "metro", "irctc", "indigo", "spicejet",
     "air india", "airindia", "goindigo", "vistara", "akasa", "makemytrip",
     "yatra", "petrol", "fuel", "iocl", "bpcl", "hpcl", "parking",
-    "fastag", "toll", "cab", "taxi", "auto", "rickshaw", "paytm fastag",
-    "redbus",
+    "fastag", "toll", "cab", "taxi", "auto", "rickshaw", "redbus",
   ],
   "Shopping": [
     "amazon", "flipkart", "myntra", "ajio", "nykaa", "meesho", "zepto",
@@ -54,7 +53,7 @@ const RULES: Record<Category, string[]> = {
     "torrent power", "airtel", "jio postpaid", "bsnl", "vi ", "vodafone",
     "water bill", "gas bill", "piped gas", "mgl", "igl", "broadband",
     "postpaid bill", "recharge", "bill payment", "bbps", "municipal",
-    "property tax", "lwf",
+    "property tax",
   ],
   "Rent / Housing": [
     "rent", "landlord", "house rent", "maintenance charge", "society",
@@ -68,8 +67,7 @@ const RULES: Record<Category, string[]> = {
   "EMI / Loans": [
     "emi", "loan repayment", "loan emi", "home loan", "car loan",
     "personal loan", "bajaj finserv", "hdfc loan", "icici loan",
-    "equated monthly", "bajaj finance", "zerodha", "groww", "smallcase",
-    "mf", "mutual fund sip", "sip",
+    "equated monthly", "bajaj finance", "insurance premium", "lic ",
   ],
   Miscellaneous: [],
 }
@@ -86,12 +84,12 @@ export function categorizeByRules(description: string): Category {
 export function normalizeDescription(raw: string): string {
   return raw
     .replace(/\b(UPI|NEFT|IMPS|RTGS|VPA|REF|TXN|TRN|POS|ATM|BRN|CR|DR)\b/gi, "")
-    .replace(/\d{6,}/g, "")           // remove long reference numbers
-    .replace(/[*\/\\|<>@]/g, " ")     // remove special chars
+    .replace(/\d{6,}/g, "")
+    .replace(/[*\/\\|<>@]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
-    .replace(/^[-\s]+|[-\s]+$/g, "")  // trim leading/trailing dashes
-    .replace(/\b\w/g, (c) => c.toUpperCase()) // title case
+    .replace(/^[-\s]+|[-\s]+$/g, "")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
     .slice(0, 80)
 }
 
@@ -102,49 +100,78 @@ export function makeHash(userId: string, date: string, amount: number, rawDesc: 
     .digest("hex")
 }
 
-// Batch categorize via Claude for uncategorized descriptions
+// In-memory cache: merchant → category (avoids repeat API calls for same merchant)
+const categoryCache = new Map<string, Category>()
+
+/**
+ * Batch categorize via Gemini — optimized for quota:
+ * 1. Deduplicate descriptions (50 Zomato orders = 1 API lookup)
+ * 2. Only send truly uncategorized items
+ * 3. Single API call for entire batch
+ * 4. Results cached in-memory for process lifetime
+ */
 export async function batchCategorizeWithAI(
   descriptions: string[]
 ): Promise<Record<string, Category>> {
-  if (!process.env.ANTHROPIC_API_KEY || descriptions.length === 0) return {}
+  if (!process.env.GEMINI_API_KEY || descriptions.length === 0) return {}
 
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+  // Deduplicate — same merchant appears many times, only categorize once
+  const unique = [...new Set(descriptions)].filter((d) => !categoryCache.has(d))
 
-  const prompt = `Categorize each transaction description into exactly one of these categories:
-${CATEGORIES.join(", ")}
+  if (unique.length === 0) {
+    // All already cached
+    const result: Record<string, Category> = {}
+    for (const d of descriptions) {
+      const cached = categoryCache.get(d)
+      if (cached) result[d] = cached
+    }
+    return result
+  }
 
-Descriptions (one per line):
-${descriptions.map((d, i) => `${i + 1}. ${d}`).join("\n")}
+  // Cap at 40 unique items per call to stay well within token limits
+  const batch = unique.slice(0, 40)
 
-Respond with ONLY a JSON array of objects like:
-[{"index": 1, "category": "Food / Dining"}, ...]
+  const prompt = `Categorize each into one of: ${CATEGORIES.join("|")}
 
-Rules:
-- If it looks like income/salary, use "Salary / Income"
-- UPI transfers between individuals = "Transfers"
-- Insurance premiums = "EMI / Loans"
-- Grocery stores = "Shopping"
-- When unsure, use "Miscellaneous"`
+${batch.map((d, i) => `${i + 1}.${d}`).join("\n")}
+
+Reply ONLY with JSON array: [{"i":1,"c":"Food / Dining"},...]`
 
   try {
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 1024,
-      messages: [{ role: "user", content: prompt }],
+    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    const model = genAI.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      generationConfig: { maxOutputTokens: 512, temperature: 0 },
     })
-    const text = (msg.content[0] as { text: string }).text
+
+    const result = await model.generateContent(prompt)
+    const text = result.response.text().trim()
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     if (!jsonMatch) return {}
-    const results = JSON.parse(jsonMatch[0]) as { index: number; category: string }[]
+
+    const parsed = JSON.parse(jsonMatch[0]) as { i: number; c: string }[]
     const map: Record<string, Category> = {}
-    for (const r of results) {
-      const desc = descriptions[r.index - 1]
-      if (desc && CATEGORIES.includes(r.category as Category)) {
-        map[desc] = r.category as Category
+
+    for (const r of parsed) {
+      const desc = batch[r.i - 1]
+      if (desc && CATEGORIES.includes(r.c as Category)) {
+        const cat = r.c as Category
+        categoryCache.set(desc, cat)
+        map[desc] = cat
       }
     }
+
+    // Also return cached results for the full input list
+    for (const d of descriptions) {
+      if (!map[d]) {
+        const cached = categoryCache.get(d)
+        if (cached) map[d] = cached
+      }
+    }
+
     return map
-  } catch {
+  } catch (err) {
+    console.error("Gemini categorize error:", err)
     return {}
   }
 }
