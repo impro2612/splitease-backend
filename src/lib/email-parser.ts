@@ -125,9 +125,10 @@ export function parseTransactionEmail(
 
   // Try to extract date from email body, fall back to received date
   let date = receivedDate
-  const dateMatch = text.match(/(\d{1,2}[-/]\d{1,2}[-/]\d{2,4})/)?.[1]
-  if (dateMatch) {
-    const parsed = new Date(dateMatch)
+  const dm = text.match(/(\d{1,2})[-/](\d{1,2})[-/](\d{2,4})/)
+  if (dm) {
+    const year = dm[3].length === 2 ? 2000 + parseInt(dm[3]) : parseInt(dm[3])
+    const parsed = new Date(year, parseInt(dm[2]) - 1, parseInt(dm[1]))
     if (!isNaN(parsed.getTime())) date = parsed
   }
 

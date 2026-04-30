@@ -31,7 +31,8 @@ export async function GET(req: NextRequest) {
     })
 
     const tokens = await tokenRes.json()
-    if (!tokens.refresh_token) throw new Error("No refresh token received")
+    if (!tokenRes.ok || tokens.error) throw new Error(tokens.error_description ?? "Token exchange failed")
+    if (!tokens.refresh_token) throw new Error("No refresh token — ensure access_type=offline and prompt=consent")
 
     // Get the Gmail email address
     const profileRes = await fetch("https://www.googleapis.com/oauth2/v2/userinfo", {
