@@ -83,15 +83,11 @@ export async function POST(req: NextRequest) {
   const afterEpoch = Math.floor(sinceDate.getTime() / 1000)
   const query = `${BANK_QUERY} after:${afterEpoch}`
 
-  console.log("[sync-now] query:", query)
-  console.log("[sync-now] sinceDate:", sinceDate.toISOString())
-
   const listData = await gmailFetch(
     `users/me/messages?q=${encodeURIComponent(query)}&maxResults=500`,
     accessToken
   )
   const messages: { id: string }[] = listData.messages ?? []
-  console.log("[sync-now] messages found:", messages.length, "resultSizeEstimate:", listData.resultSizeEstimate)
 
   const newTxns: {
     id: string; userId: string; date: Date; amount: number; type: string;
@@ -111,7 +107,6 @@ export async function POST(req: NextRequest) {
       const body = extractBody(detail.payload ?? {})
 
       const parsed = parseTransactionEmail(from, subject, body, receivedDate)
-      console.log("[sync-now] msg from:", from, "| subject:", subject.slice(0,60), "| parsed:", !!parsed)
       if (!parsed) continue
 
       const hash = makeHash(user.id, parsed.date.toISOString().split("T")[0], parsed.amount, parsed.rawDescription)
