@@ -21,23 +21,25 @@ interface BankPattern {
 const BANK_PATTERNS: BankPattern[] = [
   {
     name: "HDFC",
-    senders: ["alerts@hdfcbank.net", "hdfcbank.net"],
+    // Real domain confirmed from actual emails: hdfcbank.bank.in
+    senders: ["hdfcbank.bank.in", "hdfcbank.net", "hdfcbank.com"],
     debitRegex: /(?:debited|debit|spent|paid)/i,
     creditRegex: /(?:credited|credit|received)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
-    descRegex: /(?:at|to|from|Info:|for)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\s+Avl|\s+Bal|\.)/i,
+    descRegex: /(?:to VPA\s+\S+\s+|at|to|from|Info:|for)\s*([A-Za-z0-9 *\-/.@]+?)(?:\s+on|\s+Avl|\s+Bal|\.(?:\s|$)|$)/i,
   },
   {
     name: "ICICI",
-    senders: ["autoreply@icicibank.com", "icicibank.com"],
-    debitRegex: /(?:debited|debit|spent)/i,
+    // Real domain confirmed from actual emails: icici.bank.in
+    senders: ["icici.bank.in", "icicibank.com", "autoreply@icicibank.com"],
+    debitRegex: /(?:debited|debit|spent|used for a transaction)/i,
     creditRegex: /(?:credited|credit|received)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
-    descRegex: /(?:at|to|Info:)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\.|,)/i,
+    descRegex: /(?:Info:|at|to)\s+([A-Za-z0-9 *\-/]+?)(?:\s+on|\.|,|$)/i,
   },
   {
     name: "SBI",
-    senders: ["sbialert@sbi.co.in", "sbi.co.in"],
+    senders: ["sbi.bank.in", "sbialert@sbi.co.in", "sbi.co.in"],
     debitRegex: /(?:debited|debit|withdrawn)/i,
     creditRegex: /(?:credited|credit|deposited)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
@@ -45,7 +47,7 @@ const BANK_PATTERNS: BankPattern[] = [
   },
   {
     name: "Axis",
-    senders: ["axis.alerts@axisbank.com", "axisbank.com"],
+    senders: ["axisbank.bank.in", "axis.bank.in", "axisbank.com"],
     debitRegex: /(?:debited|debit|spent)/i,
     creditRegex: /(?:credited|credit)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
@@ -53,7 +55,7 @@ const BANK_PATTERNS: BankPattern[] = [
   },
   {
     name: "Kotak",
-    senders: ["alerts@kotak.com", "kotak.com"],
+    senders: ["kotak.bank.in", "alerts@kotak.com", "kotak.com"],
     debitRegex: /(?:debited|debit|spent)/i,
     creditRegex: /(?:credited|credit)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
@@ -61,7 +63,7 @@ const BANK_PATTERNS: BankPattern[] = [
   },
   {
     name: "PhonePe",
-    senders: ["noreply@phonepe.com", "phonepe.com"],
+    senders: ["phonepe.com"],
     debitRegex: /(?:debited|paid|sent)/i,
     creditRegex: /(?:credited|received|got)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
@@ -69,7 +71,7 @@ const BANK_PATTERNS: BankPattern[] = [
   },
   {
     name: "GPay",
-    senders: ["noreply-pay@google.com", "google.com"],
+    senders: ["google.com"],
     debitRegex: /(?:paid|sent|debited)/i,
     creditRegex: /(?:received|credited)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,
@@ -77,7 +79,7 @@ const BANK_PATTERNS: BankPattern[] = [
   },
   {
     name: "Paytm",
-    senders: ["noreply@paytm.com", "paytm.com"],
+    senders: ["paytm.com"],
     debitRegex: /(?:debited|paid|spent)/i,
     creditRegex: /(?:credited|received)/i,
     amountRegex: /(?:Rs\.?|INR|₹)\s*([\d,]+\.?\d*)/i,

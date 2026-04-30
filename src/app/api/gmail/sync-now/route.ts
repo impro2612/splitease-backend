@@ -6,26 +6,35 @@ import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithA
 
 // Broad domain-based query — catches all sender addresses from each bank/UPI app,
 // combined with transaction keywords so promotional emails are excluded.
+// Actual .bank.in domains (RBI-mandated official domains for Indian banks)
+// confirmed from real transaction emails + common UPI app domains
 const BANK_SENDER_DOMAINS = [
+  // Actual confirmed domains
+  "hdfcbank.bank.in",   // HDFC (confirmed)
+  "icici.bank.in",      // ICICI (confirmed)
+  // Other major banks on .bank.in TLD
+  "sbi.bank.in",
+  "axisbank.bank.in",
+  "kotak.bank.in",
+  "yesbank.bank.in",
+  "indusind.bank.in",
+  "pnb.bank.in",
+  "canarabank.bank.in",
+  "idfcfirstbank.bank.in",
+  "federalbank.bank.in",
+  "rbl.bank.in",
+  "sc.bank.in",
+  "unionbankofindia.bank.in",
+  "idbi.bank.in",
+  "bob.bank.in",
+  // Fallback legacy domains some banks still use
   "hdfcbank.net", "hdfcbank.com",
   "icicibank.com",
   "sbi.co.in",
-  "axisbank.com",
-  "kotak.com",
-  "yesbank.in",
-  "indusind.com",
-  "pnb.co.in",
-  "canarabank.com",
-  "idfcfirstbank.com",
-  "federalbank.co.in",
-  "rblbank.com",
-  "sc.com",                 // Standard Chartered
-  "phonepe.com",
-  "paytm.com",
-  "amazon.in",              // Amazon Pay
-  "bajajfinserv.in",
-  "payzapp.in",             // HDFC PayZapp
-  "mobikwik.com",
+  "axisbank.com", "kotak.com",
+  // UPI apps
+  "phonepe.com", "paytm.com", "google.com",
+  "amazon.in", "bajajfinserv.in",
 ].map((d) => `from:${d}`).join(" OR ")
 
 // Subject-line keywords that appear in Indian bank transaction alerts
