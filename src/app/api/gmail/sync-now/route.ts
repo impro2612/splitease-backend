@@ -6,46 +6,10 @@ import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithA
 
 // Broad domain-based query — catches all sender addresses from each bank/UPI app,
 // combined with transaction keywords so promotional emails are excluded.
-// Actual .bank.in domains (RBI-mandated official domains for Indian banks)
-// confirmed from real transaction emails + common UPI app domains
-const BANK_SENDER_DOMAINS = [
-  // Actual confirmed domains
-  "hdfcbank.bank.in",   // HDFC (confirmed)
-  "icici.bank.in",      // ICICI (confirmed)
-  // Other major banks on .bank.in TLD
-  "sbi.bank.in",
-  "axisbank.bank.in",
-  "kotak.bank.in",
-  "yesbank.bank.in",
-  "indusind.bank.in",
-  "pnb.bank.in",
-  "canarabank.bank.in",
-  "idfcfirstbank.bank.in",
-  "federalbank.bank.in",
-  "rbl.bank.in",
-  "sc.bank.in",
-  "unionbankofindia.bank.in",
-  "idbi.bank.in",
-  "bob.bank.in",
-  // Fallback legacy domains some banks still use
-  "hdfcbank.net", "hdfcbank.com",
-  "icicibank.com",
-  "sbi.co.in",
-  "axisbank.com", "kotak.com",
-  // UPI apps
-  "phonepe.com", "paytm.com", "google.com",
-  "amazon.in", "bajajfinserv.in",
-].map((d) => `from:${d}`).join(" OR ")
-
-// Subject-line keywords that appear in Indian bank transaction alerts
-const TRANSACTION_SUBJECT_KEYWORDS = [
-  "debited", "credited", "debit", "credit",
-  "transaction", "transferred", "payment",
-  "withdrawn", "deposited", "spent", "paid",
-  "UPI", "NEFT", "IMPS", "RTGS",
-].map((k) => `subject:${k}`).join(" OR ")
-
-const BANK_QUERY = `(${BANK_SENDER_DOMAINS}) (${TRANSACTION_SUBJECT_KEYWORDS})`
+// Search only by subject keywords — more reliable than from: domain filters
+// which can silently return 0 when the query is too long or domain doesn't match exactly.
+// The email parser's detectBank() will filter out non-bank emails after fetch.
+const BANK_QUERY = "(subject:debited OR subject:credited OR subject:\"has been debited\" OR subject:\"has been credited\" OR subject:\"used for a transaction\" OR subject:\"UPI transaction\" OR subject:\"NEFT\" OR subject:\"IMPS\" OR subject:\"transaction alert\")"
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -113,8 +77,9 @@ export async function POST(req: NextRequest) {
   const accessToken = await refreshAccessToken(conn.refreshToken)
   if (!accessToken) return Response.json({ error: "Failed to refresh Gmail token" }, { status: 400 })
 
-  // Sync last 90 days on first sync, otherwise since last sync
-  const sinceDate = conn.lastSyncAt ?? new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
+  // User-triggered sync always looks back 180 days — ignore lastSyncAt
+  // (lastSyncAt is only used by the daily cron for incremental syncs)
+  const sinceDate = new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
   const afterEpoch = Math.floor(sinceDate.getTime() / 1000)
   const query = `${BANK_QUERY} after:${afterEpoch}`
 
