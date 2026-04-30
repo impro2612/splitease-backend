@@ -3,16 +3,36 @@ import { prisma } from "@/lib/prisma"
 import { parseTransactionEmail } from "@/lib/email-parser"
 import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithAI } from "@/lib/categorize"
 
-const BANK_QUERY = [
-  "from:alerts@hdfcbank.net",
-  "from:autoreply@icicibank.com",
-  "from:sbialert@sbi.co.in",
-  "from:axis.alerts@axisbank.com",
-  "from:alerts@kotak.com",
-  "from:noreply@phonepe.com",
-  "from:noreply-pay@google.com",
-  "from:noreply@paytm.com",
-].join(" OR ")
+const BANK_SENDER_DOMAINS = [
+  "hdfcbank.net", "hdfcbank.com",
+  "icicibank.com",
+  "sbi.co.in",
+  "axisbank.com",
+  "kotak.com",
+  "yesbank.in",
+  "indusind.com",
+  "pnb.co.in",
+  "canarabank.com",
+  "idfcfirstbank.com",
+  "federalbank.co.in",
+  "rblbank.com",
+  "sc.com",
+  "phonepe.com",
+  "paytm.com",
+  "amazon.in",
+  "bajajfinserv.in",
+  "payzapp.in",
+  "mobikwik.com",
+].map((d) => `from:${d}`).join(" OR ")
+
+const TRANSACTION_SUBJECT_KEYWORDS = [
+  "debited", "credited", "debit", "credit",
+  "transaction", "transferred", "payment",
+  "withdrawn", "deposited", "spent", "paid",
+  "UPI", "NEFT", "IMPS", "RTGS",
+].map((k) => `subject:${k}`).join(" OR ")
+
+const BANK_QUERY = `(${BANK_SENDER_DOMAINS}) (${TRANSACTION_SUBJECT_KEYWORDS})`
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
@@ -94,9 +114,9 @@ export async function GET(req: NextRequest) {
       if (!accessToken) { results[conn.userId] = -1; continue }
 
       // Build search query — only since last sync
-      const sinceDate = conn.lastSyncAt ?? new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      const sinceDate = conn.lastSyncAt ?? new Date(Date.now() - 180 * 24 * 60 * 60 * 1000)
       const afterEpoch = Math.floor(sinceDate.getTime() / 1000)
-      const query = `(${BANK_QUERY}) after:${afterEpoch}`
+      const query = `${BANK_QUERY} after:${afterEpoch}`
 
       const listData = await gmailFetch(
         `users/me/messages?q=${encodeURIComponent(query)}&maxResults=100`,
