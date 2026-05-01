@@ -5,7 +5,7 @@ import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithA
 import { GoogleGenerativeAI } from "@google/generative-ai"
 import * as pdfParseModule from "pdf-parse"
 // pdf-parse ships CJS; handle both default and named export shapes
-const pdfParse: (buf: Buffer) => Promise<{ text: string }> =
+const pdfParse: (buf: Buffer, opts?: { password?: string }) => Promise<{ text: string }> =
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (pdfParseModule as any).default ?? pdfParseModule
 
@@ -22,18 +22,23 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Please upload a PDF bank statement" }, { status: 400 })
   }
 
+  const password = (formData.get("password") as string | null) ?? undefined
   const buffer = Buffer.from(await file.arrayBuffer())
 
   let pdfText = ""
   try {
-    const result = await pdfParse(buffer)
+    const result = await pdfParse(buffer, password ? { password } : undefined)
     pdfText = result.text ?? ""
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : ""
-    if (msg.toLowerCase().includes("encrypt") || msg.toLowerCase().includes("password")) {
-      return Response.json({
-        error: "This PDF is password-protected. Open it in a PDF viewer, save/print as a new PDF without a password, then try again.",
-      }, { status: 400 })
+    const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
+    const isPasswordIssue = msg.includes("password") || msg.includes("encrypt")
+    if (isPasswordIssue) {
+      if (password) {
+        // Had a password but still failed — wrong password
+        return Response.json({ error: "Incorrect password. Please try again." }, { status: 400 })
+      }
+      // No password supplied — ask for one
+      return Response.json({ needsPassword: true }, { status: 422 })
     }
     return Response.json({ error: "Could not read the PDF. Please try a different file." }, { status: 400 })
   }
