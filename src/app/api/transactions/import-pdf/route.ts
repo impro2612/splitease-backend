@@ -59,42 +59,62 @@ export async function POST(req: NextRequest) {
     }, { status: 400 })
   }
 
+  console.log(`[import-pdf] PDF text length: ${pdfText.trim().length} chars`)
+
   if (!process.env.GEMINI_API_KEY) {
     return Response.json({ error: "AI parsing not configured" }, { status: 500 })
   }
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   const model = genAI.getGenerativeModel({
-    model: "gemini-1.5-flash",
-    generationConfig: { temperature: 0, maxOutputTokens: 8192 },
+    model: "gemini-2.0-flash",
+    generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: "application/json" },
   })
 
-  // Send at most 30k chars — covers ~30 pages of statements
-  const textChunk = pdfText.slice(0, 30000)
+  // Send at most 20k chars to stay well within timeout budget
+  const textChunk = pdfText.slice(0, 20000)
 
   const prompt = `You are a bank statement parser. Extract all DEBIT transactions from the following Indian bank statement text.
 
-Return ONLY a JSON array — no explanation, no markdown, just the array:
+Return ONLY a JSON array (no markdown, no explanation):
 [{"date":"YYYY-MM-DD","amount":1234.56,"description":"merchant or payee name"}]
 
 Rules:
 - Include ONLY debits (money going OUT): withdrawals, purchases, UPI payments, NEFT/IMPS sent, EMI, charges
 - SKIP credits/deposits (money coming IN)
-- amount = rupees as a decimal number (e.g. 557.60 not 55760)
+- amount = rupees as a positive decimal number (e.g. 557.60)
 - date = YYYY-MM-DD format
-- description = merchant name, payee UPI ID, or transaction narration (max 80 chars, trim whitespace)
+- description = merchant name, payee UPI ID, or transaction narration (max 80 chars, trimmed)
 - If no debit transactions found, return []
 
-Bank statement:
+Bank statement text:
 ${textChunk}`
 
   let rawTransactions: { date: string; amount: number; description: string }[] = []
   try {
     const result = await model.generateContent(prompt)
-    const text = result.response.text().trim()
-    const match = text.match(/\[[\s\S]*\]/)
-    if (match) rawTransactions = JSON.parse(match[0])
-  } catch {
+    const responseText = result.response.text().trim()
+    console.log(`[import-pdf] Gemini response length: ${responseText.length}, preview: ${responseText.slice(0, 300)}`)
+    // responseMimeType:"application/json" makes Gemini return valid JSON directly
+    // but also handle code fences and nested object shapes as fallbacks
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(responseText)
+    } catch {
+      const stripped = responseText.replace(/^```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim()
+      const match = stripped.match(/\[[\s\S]*\]/)
+      if (match) parsed = JSON.parse(match[0])
+    }
+    if (Array.isArray(parsed)) {
+      rawTransactions = parsed
+    } else if (parsed && typeof parsed === "object") {
+      // Gemini sometimes wraps array in {"transactions":[...]}
+      const wrap = parsed as Record<string, unknown>
+      const arr = wrap.transactions ?? wrap.debits ?? wrap.data ?? wrap.results
+      if (Array.isArray(arr)) rawTransactions = arr as typeof rawTransactions
+    }
+  } catch (geminiErr) {
+    console.error("[import-pdf] Gemini error:", geminiErr)
     return Response.json({ error: "Could not parse transactions from this PDF. Try a different statement format." }, { status: 500 })
   }
 
