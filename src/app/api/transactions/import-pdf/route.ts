@@ -20,6 +20,9 @@ export async function POST(req: NextRequest) {
   const password = (formData.get("password") as string | null) ?? undefined
   const arrayBuffer = await file.arrayBuffer()
   const uint8Array = new Uint8Array(arrayBuffer)
+  // Capture base64 before passing to pdf.js — pdf.js transfers/detaches the ArrayBuffer
+  // internally when it successfully opens the document, making uint8Array zero-length afterward.
+  const pdfBase64 = Buffer.from(uint8Array).toString("base64")
 
   // Use unpdf only to detect password-protection — actual parsing is done by the Python service
   try {
@@ -59,7 +62,7 @@ export async function POST(req: NextRequest) {
 
   // Send as JSON+base64 — avoids Node.js FormData/multipart issues in serverless
   const jsonBody = JSON.stringify({
-    pdf_base64: Buffer.from(uint8Array).toString("base64"),
+    pdf_base64: pdfBase64,
     ...(password ? { password } : {}),
   })
 
