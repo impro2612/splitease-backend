@@ -68,17 +68,58 @@ const CREDIT_PATTERNS = [
   /\brefund\b/i,
 ]
 
-// Generic promotional / OTP / other filters — if any match, skip
+// Reject these emails before any parsing — they are NOT real transactions
 const NON_TRANSACTION_PATTERNS = [
+  // Security / account management
   /\b(?:otp|one.?time password)\b/i,
+  /\bpassword\s+(?:changed|reset|updated)\b/i,
+  /\bsecure\s+your\s+account\b/i,
+  /\bclick\s+here\b.*\bverify\b/i,
+  /\bnew\s+(?:account|registration|device|login)\b/i,
+  /\bregistration\s+(?:successful|complete)\b/i,
+  /\bcard\s+(?:dispatched|delivered|activated|blocked|unblocked)\b/i,
+
+  // Promotional / marketing — loan & credit offers
   /\bpre.?approved\b/i,
-  /\bstatement\b/i,
-  /\bpassword changed\b/i,
-  /\bregistration\b/i,
-  /\bnew (?:account|registration)\b/i,
-  /\bcard (?:dispatched|delivered|activated)\b/i,
-  /\bsecure your account\b/i,
-  /\bclick here\b.*\bverify\b/i,
+  /\bjumbo\s+loan\b/i,
+  /\b(?:personal|home|car|gold|education)\s+loan\s+(?:offer|approved|eligible|available)\b/i,
+  /\bget\s+a\s+loan\b/i,
+  /\bapply\s+(?:now|for)\b.*\bloan\b/i,
+  /\bloan\s+offer\b/i,
+  /\bcredit\s+limit\s+(?:increased|enhanced|raised)\b/i,
+  /\bwhy\s+stop\b/i,                        // "Why Stop At 1 Card?"
+  /\bclaim\s+your\s+(?:free|reward|gift)\b/i,
+
+  // Rewards / cashback OFFERS (not actual cashback credited — those say "cashback credited")
+  /\bworth\s+(?:of\s+)?rewards?\b/i,         // "₹250 Worth Rewards"
+  /\brewards?\s+(?:earned|unlocked|waiting|expiring)\b/i,
+  /\btransactions?\s+=\s*[₹Rs].*rewards?\b/i, // "2 Transactions = ₹250 Worth Rewards"
+  /\bunlock(?:ed)?\s+(?:offer|reward|benefit|cashback)\b/i,
+  /\byou(?:'ve|\s+have)\s+earned\b/i,
+
+  // Credit score & financial health marketing
+  /\bcredit\s+score\b/i,
+  /\bfinancial\s+record\s+has\b/i,           // "Your Strong Financial Record Has Unlocked"
+  /\bcibil\b/i,
+
+  // Generic marketing signals
+  /\bauto.?generated\s*(?:email|mail|message)\b/i,
+  /\bprice\s+slash(?:ed)?\b/i,
+  /\bexclusive\s+offer\b/i,
+  /\bspecial\s+offer\b/i,
+  /\blimited\s+(?:time\s+)?offer\b/i,
+  /\bwelcome\s+(?:to|bonus|gift)\b/i,
+  /\b(?:congratulations|congrats)[,!]?\s+you(?:'ve)?\b/i,
+
+  // Statements & summaries (not individual transactions)
+  /\bmonthly\s+statement\b/i,
+  /\bstatement\s+(?:for|of|is\s+ready)\b/i,
+  /\bmini\s+statement\b/i,
+
+  // Minimum due / payment reminders (not a debit event)
+  /\bminimum\s+(?:amount\s+)?due\b/i,
+  /\bpayment\s+due\s+(?:date|reminder)\b/i,
+  /\bdue\s+date\s+reminder\b/i,
 ]
 
 // Universal amount regex — matches Rs. 1,234.56 / INR 5000 / ₹999
@@ -168,14 +209,12 @@ export function parseTransactionEmail(
   const amountMatch = text.match(AMOUNT_REGEX)
   if (!amountMatch) return null
   const amount = parseAmount(amountMatch[1])
-  if (amount <= 0 || amount > 10_000_000_00) return null // > ₹1Cr is suspicious
+  if (amount <= 0 || amount > 5_000_000_00) return null // > ₹50L single transaction is implausible
 
-  // Determine transaction type
-  const isDebit  = DEBIT_PATTERNS.some((p)  => p.test(text))
-  const isCredit = CREDIT_PATTERNS.some((p) => p.test(text))
-  if (!isDebit && !isCredit) return null
-  // Debit takes priority when both match (e.g., "debited" + "credited Avl balance")
-  const type: "debit" | "credit" = isDebit ? "debit" : "credit"
+  // This app is expense-only — only debit transactions are imported
+  const isDebit = DEBIT_PATTERNS.some((p) => p.test(text))
+  if (!isDebit) return null
+  const type = "debit" as const
 
   const rawDescription = extractDescription(text) || subject.slice(0, 80)
   const date = extractDate(text, receivedDate)
