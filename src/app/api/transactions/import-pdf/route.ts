@@ -57,17 +57,16 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "PDF parser service not configured." }, { status: 500 })
   }
 
-  const buildForm = () => {
-    const f = new FormData()
-    f.append("file", new Blob([uint8Array], { type: "application/pdf" }), file.name)
-    if (password) f.append("password", password)
-    return f
-  }
+  // Send as JSON+base64 — avoids Node.js FormData/multipart issues in serverless
+  const jsonBody = JSON.stringify({
+    pdf_base64: Buffer.from(uint8Array).toString("base64"),
+    ...(password ? { password } : {}),
+  })
 
-  // Poll /health until Render is alive (wakes up cold-start instances),
+  // Poll /health until Render is alive (wakes cold-start instances),
   // then send the PDF once with no AbortSignal — maxDuration is the ceiling.
   async function callParser(): Promise<Response> {
-    const WARM_LIMIT = 75_000  // max 75s waiting for Render to wake up
+    const WARM_LIMIT = 75_000
     const warmStart = Date.now()
     let healthy = false
 
@@ -82,8 +81,11 @@ export async function POST(req: NextRequest) {
 
     if (!healthy) throw new Error("Service did not become healthy within 75s")
 
-    // Service is confirmed alive — parse PDF, no timeout (maxDuration governs)
-    return fetch(`${parserUrl}/parse-pdf`, { method: "POST", body: buildForm() })
+    return fetch(`${parserUrl}/parse-pdf`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: jsonBody,
+    })
   }
 
   let rawTransactions: { date: string; amount: number; description: string; type: "debit" | "credit" }[]
