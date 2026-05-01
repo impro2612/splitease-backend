@@ -66,6 +66,8 @@ function extractBody(payload: Record<string, unknown>): string {
   return ""
 }
 
+export const maxDuration = 60 // seconds — Vercel serverless function limit
+
 // POST /api/gmail/sync-now — manual trigger for the current user
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
   const query = `${BANK_QUERY} after:${afterEpoch}`
 
   const listData = await gmailFetch(
-    `users/me/messages?q=${encodeURIComponent(query)}&maxResults=500`,
+    `users/me/messages?q=${encodeURIComponent(query)}&maxResults=100`,
     accessToken
   )
   const messages: { id: string }[] = listData.messages ?? []
@@ -96,44 +98,49 @@ export async function POST(req: NextRequest) {
   }[] = []
   const uncategorized: { idx: number; desc: string }[] = []
 
-  for (const msg of messages) {
-    try {
-      const detail = await gmailFetch(`users/me/messages/${msg.id}?format=full`, accessToken)
-      const headers: { name: string; value: string }[] = detail.payload?.headers ?? []
-      const from = headers.find((h: { name: string }) => h.name === "From")?.value ?? ""
-      const subject = headers.find((h: { name: string }) => h.name === "Subject")?.value ?? ""
-      const dateStr = headers.find((h: { name: string }) => h.name === "Date")?.value ?? ""
-      const receivedDate = dateStr ? new Date(dateStr) : new Date()
-      const body = extractBody(detail.payload ?? {})
+  // Fetch email details in parallel batches of 10 to stay within timeout
+  const BATCH = 10
+  for (let i = 0; i < messages.length; i += BATCH) {
+    const batch = messages.slice(i, i + BATCH)
+    await Promise.all(batch.map(async (msg) => {
+      try {
+        const detail = await gmailFetch(`users/me/messages/${msg.id}?format=full`, accessToken)
+        const headers: { name: string; value: string }[] = detail.payload?.headers ?? []
+        const from = headers.find((h: { name: string }) => h.name === "From")?.value ?? ""
+        const subject = headers.find((h: { name: string }) => h.name === "Subject")?.value ?? ""
+        const dateStr = headers.find((h: { name: string }) => h.name === "Date")?.value ?? ""
+        const receivedDate = dateStr ? new Date(dateStr) : new Date()
+        const body = extractBody(detail.payload ?? {})
 
-      const parsed = parseTransactionEmail(from, subject, body, receivedDate)
-      if (!parsed) continue
+        const parsed = parseTransactionEmail(from, subject, body, receivedDate)
+        if (!parsed) return
 
-      const hash = makeHash(user.id, parsed.date.toISOString().split("T")[0], parsed.amount, parsed.rawDescription)
-      const exists = await prisma.personalTransaction.findUnique({ where: { hash } })
-      if (exists) continue
+        const hash = makeHash(user.id, parsed.date.toISOString().split("T")[0], parsed.amount, parsed.rawDescription)
+        const exists = await prisma.personalTransaction.findUnique({ where: { hash } })
+        if (exists) return
 
-      const description = normalizeDescription(parsed.rawDescription)
-      const category = categorizeByRules(parsed.rawDescription)
+        const description = normalizeDescription(parsed.rawDescription)
+        const category = categorizeByRules(parsed.rawDescription)
 
-      const txn = {
-        id: crypto.randomUUID(),
-        userId: user.id,
-        date: parsed.date,
-        amount: parsed.amount,
-        type: parsed.type,
-        description,
-        rawDescription: parsed.rawDescription,
-        category,
-        bank: parsed.bank,
-        source: "gmail",
-        hash,
-        createdAt: new Date(),
-      }
+        const txn = {
+          id: crypto.randomUUID(),
+          userId: user.id,
+          date: parsed.date,
+          amount: parsed.amount,
+          type: parsed.type,
+          description,
+          rawDescription: parsed.rawDescription,
+          category,
+          bank: parsed.bank,
+          source: "gmail",
+          hash,
+          createdAt: new Date(),
+        }
 
-      if (category === "Miscellaneous") uncategorized.push({ idx: newTxns.length, desc: description })
-      newTxns.push(txn)
-    } catch { /* skip bad message */ }
+        if (category === "Miscellaneous") uncategorized.push({ idx: newTxns.length, desc: description })
+        newTxns.push(txn)
+      } catch { /* skip bad message */ }
+    }))
   }
 
   if (uncategorized.length > 0) {
