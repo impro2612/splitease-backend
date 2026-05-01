@@ -1,3 +1,5 @@
+import { GoogleGenerativeAI } from "@google/generative-ai"
+
 export interface ParsedTransaction {
   amount: number       // in paise
   type: "debit" | "credit"
@@ -56,16 +58,6 @@ const DEBIT_PATTERNS = [
   /\bhas been done\b/i,         // Kotak CC: "A Transaction of INR X has been done"
   /\bdebit card\b/i,            // IndusInd: "Your Debit Card shopping transaction was successful"
   /\bshopping transaction\b/i,  // IndusInd debit card alerts
-]
-
-// Signals that this email is a credit transaction
-const CREDIT_PATTERNS = [
-  /\b(?:has been |is |was )?credited\b/i,
-  /\breceived\b/i,
-  /\bdeposited\b/i,
-  /\bmoney (?:added|received)\b/i,
-  /\bcashback\b/i,
-  /\brefund\b/i,
 ]
 
 // Reject these emails before any parsing — they are NOT real transactions
@@ -149,6 +141,24 @@ const DESC_PATTERNS: RegExp[] = [
   /\b(?:NEFT|IMPS|RTGS|UPI)[- ](?:transfer|payment|transaction)?\s+(?:to|from)\s+([A-Za-z0-9 *\-/.@&']{3,50}?)(?:\s+(?:on|Ref)|\.|,|$)/i,
 ]
 
+const WEAK_LABEL_PATTERNS = [
+  /^banking with us$/i,
+  /^account\s*\d{2,}$/i,
+  /^account\s*x{2,}\d{2,}$/i,
+  /^dear customer$/i,
+  /^transaction alert$/i,
+  /^credit card statement$/i,
+  /^statement(?: for)?$/i,
+  /^bank(?:ing)? alert$/i,
+  /^hdfc bank instaalerts$/i,
+  /^axis mobile$/i,
+  /^icici bank credit cards$/i,
+  /^payment due(?: reminder)?$/i,
+  /^minimum amount due$/i,
+]
+
+const labelCache = new Map<string, string>()
+
 function detectBankName(from: string): string {
   const lower = from.toLowerCase()
   return BANK_DOMAINS.find((b) => lower.includes(b.domain))?.name ?? "Unknown"
@@ -167,6 +177,107 @@ function extractDescription(text: string): string {
     }
   }
   return ""
+}
+
+function cleanupLabel(label: string): string {
+  return label
+    .replace(/\b(?:dear customer|warm regards|thank you)\b/gi, " ")
+    .replace(/\b(?:account|card)\s*(?:no\.?|number)?\s*[x*]*\d{2,}\b/gi, " ")
+    .replace(/\b(?:ref(?:erence)?|txn|trn)\s*(?:no\.?|number)?\s*[:#-]?\s*[A-Z0-9-]{6,}\b/gi, " ")
+    .replace(/[|]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^[-,:.\s]+|[-,:.\s]+$/g, "")
+    .slice(0, 80)
+}
+
+export function isWeakTransactionLabel(label: string): boolean {
+  const cleaned = cleanupLabel(label)
+  if (!cleaned) return true
+  if (cleaned.length < 3) return true
+  if (WEAK_LABEL_PATTERNS.some((p) => p.test(cleaned))) return true
+  if (/^\d+$/.test(cleaned.replace(/\s+/g, ""))) return true
+  if (!/[A-Za-z]/.test(cleaned)) return true
+  if (/^(?:bank|banking|account|credit|debit|payment|transaction)(?:\s|$)/i.test(cleaned) && cleaned.split(/\s+/).length <= 3) {
+    return true
+  }
+  return false
+}
+
+type LabelInput = {
+  key: string
+  from: string
+  bank: string
+  subject: string
+  body: string
+  currentLabel: string
+}
+
+function buildLabelPrompt(batch: LabelInput[]): string {
+  return `Extract the best short merchant/payee label from each bank transaction email.
+
+Rules:
+- Return a short merchant/payee label in Title Case, ideally 2 to 5 words.
+- Do NOT return bank names, generic phrases, account numbers, dates, references, or greeting text.
+- Good examples: "CRED Club", "Dreamplug Paytech", "BigTree Entertainment", "Zomato", "Amazon Pay".
+- If there is no clear merchant/payee, return "Unknown Merchant".
+- Reply ONLY as JSON array: [{"key":"...","label":"..."}]
+
+${batch.map((item) => {
+  const snippet = cleanupLabel(`${item.subject} ${item.body}`).slice(0, 900)
+  return [
+    `key: ${item.key}`,
+    `bank: ${item.bank}`,
+    `from: ${item.from}`,
+    `currentLabel: ${item.currentLabel}`,
+    `emailText: ${snippet}`,
+  ].join("\n")
+}).join("\n\n---\n\n")}`
+}
+
+export async function batchExtractMerchantLabelsWithAI(
+  items: LabelInput[]
+): Promise<Record<string, string>> {
+  if (!process.env.GEMINI_API_KEY || items.length === 0) return {}
+
+  const pending = items.filter((item) => !labelCache.has(item.key))
+  const result: Record<string, string> = {}
+
+  for (const item of items) {
+    const cached = labelCache.get(item.key)
+    if (cached) result[item.key] = cached
+  }
+
+  if (pending.length === 0) return result
+
+  const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+  const model = genAI.getGenerativeModel({
+    model: "gemini-2.5-flash-lite",
+    generationConfig: { maxOutputTokens: 1024, temperature: 0 },
+  })
+
+  for (let i = 0; i < pending.length; i += 20) {
+    const batch = pending.slice(i, i + 20)
+    try {
+      const response = await model.generateContent(buildLabelPrompt(batch))
+      const text = response.response.text().trim()
+      const jsonMatch = text.match(/\[[\s\S]*\]/)
+      if (!jsonMatch) continue
+
+      const parsed = JSON.parse(jsonMatch[0]) as { key: string; label: string }[]
+      for (const row of parsed) {
+        if (!row?.key || !row?.label) continue
+        const cleaned = cleanupLabel(row.label)
+        if (!cleaned || /^unknown merchant$/i.test(cleaned)) continue
+        labelCache.set(row.key, cleaned)
+        result[row.key] = cleaned
+      }
+    } catch (err) {
+      console.error("Gemini label extraction error:", err)
+    }
+  }
+
+  return result
 }
 
 function extractDate(text: string, fallback: Date): Date {
@@ -216,7 +327,7 @@ export function parseTransactionEmail(
   if (!isDebit) return null
   const type = "debit" as const
 
-  const rawDescription = extractDescription(text) || subject.slice(0, 80)
+  const rawDescription = cleanupLabel(extractDescription(text) || subject.slice(0, 80))
   const date = extractDate(text, receivedDate)
 
   return { amount, type, rawDescription, date, bank: bankName }
