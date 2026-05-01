@@ -67,7 +67,7 @@ export async function POST(req: NextRequest) {
 
   const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
   const model = genAI.getGenerativeModel({
-    model: "gemini-2.5-flash-lite",
+    model: "gemini-1.5-flash",
     generationConfig: { temperature: 0, maxOutputTokens: 8192, responseMimeType: "application/json" },
   })
 
@@ -120,7 +120,7 @@ ${textChunk}`
     const isAuth = errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("API_KEY") || errMsg.includes("authentication")
     if (isQuota) return Response.json({ error: "AI quota limit reached. Please try again in a minute." }, { status: 503 })
     if (isAuth) return Response.json({ error: "AI service key is invalid or expired." }, { status: 500 })
-    return Response.json({ error: `AI parsing failed: ${errMsg.slice(0, 120)}` }, { status: 500 })
+    return Response.json({ error: `AI parsing failed: ${errMsg.slice(0, 200)}` }, { status: 500 })
   }
 
   if (!Array.isArray(rawTransactions) || rawTransactions.length === 0) {

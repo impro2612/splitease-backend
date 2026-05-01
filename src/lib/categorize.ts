@@ -140,7 +140,7 @@ Reply ONLY with JSON array: [{"i":1,"c":"Food / Dining"},...]`
   try {
     const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-1.5-flash",
       generationConfig: { maxOutputTokens: 512, temperature: 0 },
     })
 
