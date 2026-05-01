@@ -57,13 +57,46 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "PDF parser service not configured." }, { status: 500 })
   }
 
+  // Build FormData — helper so we can recreate it for the retry attempt
+  const buildForm = () => {
+    const f = new FormData()
+    f.append("file", new Blob([uint8Array], { type: "application/pdf" }), file.name)
+    if (password) f.append("password", password)
+    return f
+  }
+
+  // Fetch with cold-start handling: if the first attempt fails with a network
+  // error (Render free tier is sleeping), poll /health until it wakes up then retry.
+  async function callParser(): Promise<Response> {
+    try {
+      return await fetch(`${parserUrl}/parse-pdf`, {
+        method: "POST",
+        body: buildForm(),
+        signal: AbortSignal.timeout(30_000),
+      })
+    } catch { /* cold start — fall through to warm-up loop */ }
+
+    // Poll /health every 4 s for up to 55 s
+    const deadline = Date.now() + 55_000
+    while (Date.now() < deadline) {
+      await new Promise((r) => setTimeout(r, 4_000))
+      try {
+        const h = await fetch(`${parserUrl}/health`, { signal: AbortSignal.timeout(4_000) })
+        if (h.ok) break
+      } catch { /* still waking */ }
+    }
+
+    // Final attempt after warm-up
+    return fetch(`${parserUrl}/parse-pdf`, {
+      method: "POST",
+      body: buildForm(),
+      signal: AbortSignal.timeout(30_000),
+    })
+  }
+
   let rawTransactions: { date: string; amount: number; description: string; type: "debit" | "credit" }[]
   try {
-    const pyForm = new FormData()
-    pyForm.append("file", new Blob([uint8Array], { type: "application/pdf" }), file.name)
-    if (password) pyForm.append("password", password)
-
-    const pyRes = await fetch(`${parserUrl}/parse-pdf`, { method: "POST", body: pyForm })
+    const pyRes = await callParser()
 
     if (pyRes.status === 422) {
       return Response.json({ needsPassword: true }, { status: 422 })
