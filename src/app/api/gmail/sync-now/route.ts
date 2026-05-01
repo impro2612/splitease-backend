@@ -9,7 +9,7 @@ import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithA
 // Full-text search across subject + body — bank emails put "debited"/"credited"
 // in the body, not always the subject (e.g. HDFC subject is just "HDFC Bank InstaAlerts").
 // Using known bank domains as the primary filter so we don't fetch random emails.
-const BANK_QUERY = `(from:hdfcbank.bank.in OR from:icici.bank.in OR from:sbi.bank.in OR from:axisbank.bank.in OR from:kotak.bank.in OR from:yesbank.bank.in OR from:indusind.bank.in OR from:pnb.bank.in OR from:idfcfirstbank.bank.in OR from:federalbank.bank.in OR from:rbl.bank.in OR from:idbi.bank.in OR from:bob.bank.in OR from:hdfcbank.net OR from:icicibank.com OR from:sbi.co.in OR from:axisbank.com OR from:kotak.com OR from:phonepe.com OR from:paytm.com OR from:google.com)`
+const BANK_QUERY = `(from:hdfcbank.bank.in OR from:icici.bank.in OR from:sbi.bank.in OR from:axisbank.bank.in OR from:axis.bank.in OR from:kotak.bank.in OR from:yesbank.bank.in OR from:indusind.bank.in OR from:indusind.com OR from:pnb.bank.in OR from:idfcfirstbank.bank.in OR from:federalbank.bank.in OR from:rbl.bank.in OR from:idbi.bank.in OR from:bob.bank.in OR from:hdfcbank.net OR from:icicibank.com OR from:sbi.co.in OR from:axisbank.com OR from:kotak.com OR from:phonepe.com OR from:paytm.com OR from:google.com)`
 
 async function refreshAccessToken(refreshToken: string): Promise<string | null> {
   const res = await fetch("https://oauth2.googleapis.com/token", {

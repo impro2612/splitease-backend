@@ -16,11 +16,13 @@ const BANK_DOMAINS: { domain: string; name: string }[] = [
   { domain: "sbi.bank.in",      name: "SBI" },
   { domain: "sbi.co.in",        name: "SBI" },
   { domain: "axisbank.bank.in", name: "Axis" },
-  { domain: "axisbank.com",     name: "Axis" },
-  { domain: "kotak.bank.in",    name: "Kotak" },
-  { domain: "kotak.com",        name: "Kotak" },
-  { domain: "yesbank.bank.in",  name: "Yes Bank" },
+  { domain: "axis.bank.in",    name: "Axis" },   // real sender domain from actual emails
+  { domain: "axisbank.com",    name: "Axis" },
+  { domain: "kotak.bank.in",   name: "Kotak" },
+  { domain: "kotak.com",       name: "Kotak" },
+  { domain: "yesbank.bank.in", name: "Yes Bank" },
   { domain: "indusind.bank.in", name: "IndusInd" },
+  { domain: "indusind.com",    name: "IndusInd" }, // real sender domain from actual emails
   { domain: "pnb.bank.in",      name: "PNB" },
   { domain: "idfcfirstbank.bank.in", name: "IDFC First" },
   { domain: "federalbank.bank.in",   name: "Federal Bank" },
@@ -51,6 +53,9 @@ const DEBIT_PATTERNS = [
   /\bspent\b/i,
   /\bpurchase\b/i,
   /\btransacted\b/i,
+  /\bhas been done\b/i,         // Kotak CC: "A Transaction of INR X has been done"
+  /\bdebit card\b/i,            // IndusInd: "Your Debit Card shopping transaction was successful"
+  /\bshopping transaction\b/i,  // IndusInd debit card alerts
 ]
 
 // Signals that this email is a credit transaction
@@ -83,6 +88,12 @@ const AMOUNT_REGEX = /(?:Rs\.?\s*|INR\s*|₹\s*)([\d,]+(?:\.\d{1,2})?)/i
 const DESC_PATTERNS: RegExp[] = [
   // UPI VPA: "to VPA user@upi" or "VPA: user@upi"
   /(?:to\s+VPA\s+|VPA:\s*)([A-Za-z0-9.\-_@]+)/i,
+  // IndusInd UPI: "towards UPI/txnId/DR/PayeeName/Bank/vpa" — extract payee name
+  /\btowards\s+UPI\/\d+\/(?:DR|CR)\/([^/]{2,40})\//i,
+  // "Merchant Name: NAME" (Axis Bank, IndusInd structured emails)
+  /\bMerchant\s+Name[:\s]+([A-Za-z0-9 *\-/.@&'*]+?)(?:\s*(?:Amount|Date|Time|Card|Available|Limit|Balance|\|)|\.|$)/i,
+  // "against merchant NAME" (Kotak payment gateway)
+  /\bagainst\s+merchant\s+([A-Za-z0-9 *\-/.@&']+?)(?:\s+on\b|\s+Ref|\s+vide|\.|,|$)/i,
   // "Info: MERCHANT NAME" (ICICI, Axis)
   /\bInfo[:\s]+([A-Za-z0-9 *\-/.@&']+?)(?:\s+Ref|\s+on\b|\s+Avl|\.|,|$)/i,
   // "at MERCHANT" (POS / online purchases)
