@@ -27,7 +27,6 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@types/bcryptjs": "^2.4.6",
     "@types/nodemailer": "^8.0.0",
-    "@types/pdf-parse": "^1.1.5",
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -39,7 +38,6 @@
     "next": "16.2.3",
     "next-auth": "^4.24.13",
     "nodemailer": "^7.0.13",
-    "pdf-parse": "^2.4.5",
     "prisma": "^7.7.0",
     "puppeteer-core": "^24.40.0",
     "pusher": "^5.3.3",
@@ -47,6 +45,7 @@
     "react-dom": "19.2.4",
     "react-hook-form": "^7.72.1",
     "tailwind-merge": "^3.5.0",
+    "unpdf": "^1.6.2",
     "xlsx": "^0.18.5",
     "zod": "^4.3.6"
   },

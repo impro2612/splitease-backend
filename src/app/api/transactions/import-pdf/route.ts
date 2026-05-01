@@ -3,11 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithAI } from "@/lib/categorize"
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import * as pdfParseModule from "pdf-parse"
-// pdf-parse ships CJS; handle both default and named export shapes
-const pdfParse: (buf: Buffer, opts?: { password?: string }) => Promise<{ text: string }> =
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (pdfParseModule as any).default ?? pdfParseModule
+import { getResolvedPDFJS } from "unpdf"
 
 export const maxDuration = 60
 
@@ -23,21 +19,35 @@ export async function POST(req: NextRequest) {
   }
 
   const password = (formData.get("password") as string | null) ?? undefined
-  const buffer = Buffer.from(await file.arrayBuffer())
+  const arrayBuffer = await file.arrayBuffer()
+  const uint8Array = new Uint8Array(arrayBuffer)
 
   let pdfText = ""
   try {
-    const result = await pdfParse(buffer, password ? { password } : undefined)
-    pdfText = result.text ?? ""
+    const pdfjs = await getResolvedPDFJS()
+    const loadingTask = pdfjs.getDocument({
+      data: uint8Array,
+      ...(password ? { password } : {}),
+    })
+    const doc = await loadingTask.promise
+    const pageTexts: string[] = []
+    for (let i = 1; i <= doc.numPages; i++) {
+      const page = await doc.getPage(i)
+      const content = await page.getTextContent()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      pageTexts.push(content.items.map((item: any) => item.str ?? "").join(" "))
+    }
+    pdfText = pageTexts.join("\n")
   } catch (err: unknown) {
     const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
-    const isPasswordIssue = msg.includes("password") || msg.includes("encrypt")
+    const name = err instanceof Error ? (err as { name?: string }).name ?? "" : ""
+    const isPasswordIssue =
+      msg.includes("password") || msg.includes("encrypt") ||
+      name === "PasswordException" || name.toLowerCase().includes("password")
     if (isPasswordIssue) {
       if (password) {
-        // Had a password but still failed — wrong password
         return Response.json({ error: "Incorrect password. Please try again." }, { status: 400 })
       }
-      // No password supplied — ask for one
       return Response.json({ needsPassword: true }, { status: 422 })
     }
     return Response.json({ error: "Could not read the PDF. Please try a different file." }, { status: 400 })
