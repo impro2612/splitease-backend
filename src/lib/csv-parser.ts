@@ -1,5 +1,12 @@
 import * as XLSX from "xlsx"
-import type { ParsedTransaction } from "./email-parser"
+
+type ParsedTransaction = {
+  amount: number
+  type: "debit" | "credit"
+  rawDescription: string
+  date: Date
+  bank: string
+}
 
 type BankFormat = {
   name: string
