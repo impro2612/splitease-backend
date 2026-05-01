@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithAI } from "@/lib/categorize"
 import { getResolvedPDFJS } from "unpdf"
 
-export const maxDuration = 60
+export const maxDuration = 120
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
