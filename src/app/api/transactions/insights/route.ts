@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
   if (txns.length === 0) {
     return Response.json({
       insights: [],
-      aiSummary: "No transactions found for this month. Connect Gmail or upload a statement to get started.",
+      aiSummary: "No transactions found for this month. Import a PDF bank statement to get started.",
       spendingLeaks: [],
       budgetAlerts: [],
     })

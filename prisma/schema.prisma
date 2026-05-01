@@ -41,7 +41,6 @@ model User {
   targetActivities      Activity[]    @relation("ActivityTarget")
   personalTransactions  PersonalTransaction[]
   personalBudgets       PersonalBudget[]
-  gmailConnection       GmailConnection?
 }
 
 model PushDevice {
@@ -288,16 +287,3 @@ model PersonalBudget {
   @@unique([userId, category])
 }
 
-model GmailConnection {
-  id           String    @id @default(cuid())
-  userId       String    @unique
-  email        String
-  refreshToken String
-  accessToken  String?
-  expiresAt    DateTime?
-  lastSyncAt   DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-}
