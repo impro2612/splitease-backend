@@ -114,8 +114,13 @@ ${textChunk}`
       if (Array.isArray(arr)) rawTransactions = arr as typeof rawTransactions
     }
   } catch (geminiErr) {
-    console.error("[import-pdf] Gemini error:", geminiErr)
-    return Response.json({ error: "Could not parse transactions from this PDF. Try a different statement format." }, { status: 500 })
+    const errMsg = geminiErr instanceof Error ? geminiErr.message : String(geminiErr)
+    console.error("[import-pdf] Gemini error:", errMsg)
+    const isQuota = errMsg.includes("quota") || errMsg.includes("429") || errMsg.includes("RESOURCE_EXHAUSTED") || errMsg.includes("rate limit")
+    const isAuth = errMsg.includes("401") || errMsg.includes("403") || errMsg.includes("API_KEY") || errMsg.includes("authentication")
+    if (isQuota) return Response.json({ error: "AI quota limit reached. Please try again in a minute." }, { status: 503 })
+    if (isAuth) return Response.json({ error: "AI service key is invalid or expired." }, { status: 500 })
+    return Response.json({ error: `AI parsing failed: ${errMsg.slice(0, 120)}` }, { status: 500 })
   }
 
   if (!Array.isArray(rawTransactions) || rawTransactions.length === 0) {
