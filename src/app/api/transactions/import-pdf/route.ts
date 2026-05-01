@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithAI } from "@/lib/categorize"
 import { getResolvedPDFJS } from "unpdf"
 
-export const maxDuration = 120
+export const maxDuration = 300
 
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -57,7 +57,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "PDF parser service not configured." }, { status: 500 })
   }
 
-  // Build FormData — helper so we can recreate it for the retry attempt
   const buildForm = () => {
     const f = new FormData()
     f.append("file", new Blob([uint8Array], { type: "application/pdf" }), file.name)
@@ -65,33 +64,26 @@ export async function POST(req: NextRequest) {
     return f
   }
 
-  // Fetch with cold-start handling: if the first attempt fails with a network
-  // error (Render free tier is sleeping), poll /health until it wakes up then retry.
+  // Poll /health until Render is alive (wakes up cold-start instances),
+  // then send the PDF once with no AbortSignal — maxDuration is the ceiling.
   async function callParser(): Promise<Response> {
-    try {
-      return await fetch(`${parserUrl}/parse-pdf`, {
-        method: "POST",
-        body: buildForm(),
-        signal: AbortSignal.timeout(30_000),
-      })
-    } catch { /* cold start — fall through to warm-up loop */ }
+    const WARM_LIMIT = 75_000  // max 75s waiting for Render to wake up
+    const warmStart = Date.now()
+    let healthy = false
 
-    // Poll /health every 4 s for up to 55 s
-    const deadline = Date.now() + 55_000
-    while (Date.now() < deadline) {
-      await new Promise((r) => setTimeout(r, 4_000))
+    while (Date.now() - warmStart < WARM_LIMIT) {
       try {
-        const h = await fetch(`${parserUrl}/health`, { signal: AbortSignal.timeout(4_000) })
-        if (h.ok) break
+        const h = await fetch(`${parserUrl}/health`, { signal: AbortSignal.timeout(5_000) })
+        if (h.ok) { healthy = true; break }
       } catch { /* still waking */ }
+      const elapsed = Date.now() - warmStart
+      if (elapsed + 3_000 < WARM_LIMIT) await new Promise((r) => setTimeout(r, 3_000))
     }
 
-    // Final attempt after warm-up
-    return fetch(`${parserUrl}/parse-pdf`, {
-      method: "POST",
-      body: buildForm(),
-      signal: AbortSignal.timeout(30_000),
-    })
+    if (!healthy) throw new Error("Service did not become healthy within 75s")
+
+    // Service is confirmed alive — parse PDF, no timeout (maxDuration governs)
+    return fetch(`${parserUrl}/parse-pdf`, { method: "POST", body: buildForm() })
   }
 
   let rawTransactions: { date: string; amount: number; description: string; type: "debit" | "credit" }[]
