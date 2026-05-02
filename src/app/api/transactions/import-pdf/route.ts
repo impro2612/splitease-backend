@@ -1,7 +1,14 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithAI } from "@/lib/categorize"
+import {
+  type AIRefineInput,
+  type Category,
+  batchRefineTransactionsWithAI,
+  classifyTransaction,
+  makeHash,
+  shouldRefineWithAI,
+} from "@/lib/categorize"
 import { getResolvedPDFJS } from "unpdf"
 
 export const maxDuration = 300
@@ -119,7 +126,9 @@ export async function POST(req: NextRequest) {
     return Response.json({ imported: 0, total: 0 })
   }
 
-  const uncategorized: { idx: number; desc: string }[] = []
+  const toRefine: Array<AIRefineInput & {
+    idx: number
+  }> = []
   const txns: {
     id: string; userId: string; date: Date; amount: number; type: "debit" | "credit"
     description: string; rawDescription: string; category: string
@@ -131,8 +140,10 @@ export async function POST(req: NextRequest) {
     const dateObj = new Date(t.date)
     if (isNaN(dateObj.getTime())) continue
 
-    const description = normalizeDescription(t.description)
-    const category = categorizeByRules(description || t.description)
+    const classified = classifyTransaction({
+      rawDescription: t.description,
+      type: t.type,
+    })
     const amount = Math.round(t.amount * 100)
     const hash = makeHash(user.id, t.date, amount, `${t.type}|${t.description}`)
     const idx = txns.length
@@ -143,22 +154,35 @@ export async function POST(req: NextRequest) {
       date: dateObj,
       amount,
       type: t.type,
-      description: description || t.description,
+      description: classified.description || t.description,
       rawDescription: t.description,
-      category,
+      category: classified.category as Category,
       bank: null,
       source: "pdf",
       hash,
       createdAt: new Date(),
     })
 
-    if (category === "Miscellaneous") uncategorized.push({ idx, desc: description || t.description })
+    if (shouldRefineWithAI(classified, t.description)) {
+      toRefine.push({
+        idx,
+        key: `${t.type}|${t.description}`,
+        rawDescription: t.description,
+        description: classified.description || t.description,
+        type: t.type,
+        category: classified.category,
+        intent: classified.intent,
+      })
+    }
   }
 
-  if (uncategorized.length > 0) {
-    const aiMap = await batchCategorizeWithAI(uncategorized.map((u) => u.desc))
-    for (const { idx, desc } of uncategorized) {
-      if (aiMap[desc]) txns[idx].category = aiMap[desc]
+  if (toRefine.length > 0) {
+    const aiMap = await batchRefineTransactionsWithAI(toRefine)
+    for (const item of toRefine) {
+      const refined = aiMap[item.key]
+      if (!refined) continue
+      txns[item.idx].description = refined.description || txns[item.idx].description
+      txns[item.idx].category = refined.category
     }
   }
 

@@ -42,7 +42,7 @@ export async function GET(req: NextRequest) {
 
   // Category breakdown sorted by spend
   const categoryBreakdown = CATEGORIES
-    .filter((c) => c !== "Salary / Income" && c !== "Transfers")
+    .filter((c) => c !== "Salary / Income")
     .map((c) => ({ category: c, amount: (byCat[c] ?? 0) / 100 }))
     .sort((a, b) => b.amount - a.amount)
 

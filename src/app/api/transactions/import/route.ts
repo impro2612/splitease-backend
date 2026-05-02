@@ -2,7 +2,13 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { parseCSV } from "@/lib/csv-parser"
-import { categorizeByRules, normalizeDescription, makeHash, batchCategorizeWithAI } from "@/lib/categorize"
+import {
+  type AIRefineInput,
+  batchRefineTransactionsWithAI,
+  classifyTransaction,
+  makeHash,
+  shouldRefineWithAI,
+} from "@/lib/categorize"
 
 // POST /api/transactions/import
 // Body: multipart/form-data with "file" field (CSV or XLSX)
@@ -22,7 +28,9 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "No transactions found in file", skipped }, { status: 400 })
     }
 
-    const uncategorized: { idx: number; desc: string }[] = []
+    const toRefine: Array<AIRefineInput & {
+      idx: number
+    }> = []
     const rows: {
       id: string; userId: string; date: Date; amount: number; type: string;
       description: string; rawDescription: string; category: string;
@@ -31,11 +39,21 @@ export async function POST(req: NextRequest) {
 
     for (const t of transactions) {
       const hash = makeHash(user.id, t.date.toISOString().split("T")[0], t.amount, t.rawDescription)
-      const description = normalizeDescription(t.rawDescription)
-      const category = categorizeByRules(t.rawDescription)
+      const classified = classifyTransaction({
+        rawDescription: t.rawDescription,
+        type: t.type as "debit" | "credit",
+      })
 
-      if (category === "Miscellaneous") {
-        uncategorized.push({ idx: rows.length, desc: description })
+      if (shouldRefineWithAI(classified, t.rawDescription)) {
+        toRefine.push({
+          idx: rows.length,
+          key: `${t.type}|${t.rawDescription}`,
+          rawDescription: t.rawDescription,
+          description: classified.description,
+          type: t.type as "debit" | "credit",
+          category: classified.category,
+          intent: classified.intent,
+        })
       }
 
       rows.push({
@@ -44,9 +62,9 @@ export async function POST(req: NextRequest) {
         date: t.date,
         amount: t.amount,
         type: t.type,
-        description,
+        description: classified.description,
         rawDescription: t.rawDescription,
-        category,
+        category: classified.category,
         bank,
         source: "csv",
         hash,
@@ -54,11 +72,13 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    // AI categorize miscellaneous in batch
-    if (uncategorized.length > 0) {
-      const aiMap = await batchCategorizeWithAI(uncategorized.map((u) => u.desc))
-      for (const { idx, desc } of uncategorized) {
-        if (aiMap[desc]) rows[idx].category = aiMap[desc]
+    if (toRefine.length > 0) {
+      const aiMap = await batchRefineTransactionsWithAI(toRefine)
+      for (const item of toRefine) {
+        const refined = aiMap[item.key]
+        if (!refined) continue
+        rows[item.idx].description = refined.description || rows[item.idx].description
+        rows[item.idx].category = refined.category
       }
     }
 
