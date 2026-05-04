@@ -8,6 +8,7 @@ export const CATEGORIES = [
   "Transport",
   "Shopping",
   "Subscriptions",
+  "UPI Payments",
   "Transfers",
   "Bills / Utilities",
   "EMI / Loans",
@@ -170,6 +171,11 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
     category: "Subscriptions",
     intent: "subscription_payment",
     patterns: [/\bNETFLIX\b/i, /\bSPOTIFY\b/i, /\bHOTSTAR\b/i, /\bYOUTUBE PREMIUM\b/i, /\bAMAZON PRIME\b/i],
+  },
+  {
+    category: "UPI Payments",
+    intent: "merchant_spend",
+    patterns: [/\bUPI\b/i],
   },
   {
     category: "Food / Dining",
@@ -390,6 +396,7 @@ Allowed categories: ${CATEGORIES.join(" | ")}
 Rules:
 - CRED / PAYMENT ON CRED => Credit Card Payments
 - ACH D / NACH / ECS / mandate debits => EMI / Loans unless clearly bank fees
+- UPI debit rows => UPI Payments
 - Person-to-person UPI names => Transfers
 - Employer/company incoming credits => Salary / Income
 - Chemist/pharmacy/medical stores => Medical / Pharmacy
