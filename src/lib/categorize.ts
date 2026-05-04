@@ -65,16 +65,36 @@ const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category
   { pattern: /\bCRED(CLUB)?\b|PAYMENT ON CRED/i, label: "CRED Club", category: "Credit Card Payments", intent: "credit_card_payment" },
   { pattern: /\bSWIGGY(DINEOUT|DINERS)?\b/i, label: "Swiggy", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bZOMATO\b/i, label: "Zomato", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bEATCLUB\b|\bEAT\.?CLUB\b|\bBOX8\b|\bFAASOS\b/i, label: "EatClub", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bDOMINOS?\b|\bPIZZA HUT\b|\bMCDONALD'?S\b|\bKFC\b|\bBURGER KING\b|\bSUBWAY\b|\bSTARBUCKS\b/i, label: "Restaurant", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bANNAPURNA\b.*\bFOODS?\b|\bANNAPURNA\s+FOODS?\b/i, label: "Annapurna Foods", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bWAFFLE\b/i, label: "Waffle Binge", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bFLIPKART\b/i, label: "Flipkart", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bAMAZON\b/i, label: "Amazon", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bMYNTRA\b/i, label: "Myntra", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bAJIO\b/i, label: "Ajio", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bNYKAA\b/i, label: "Nykaa", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bMEESHO\b/i, label: "Meesho", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bJIOMART\b/i, label: "JioMart", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bBIGBASKET\b/i, label: "BigBasket", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bZEPTO\b/i, label: "Zepto", category: "Shopping", intent: "merchant_spend" },
-  { pattern: /\bANNAPURNA\b.*\bFOODS?\b|\bANNAPURNA\s+FOODS?\b/i, label: "Annapurna Foods", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bBLINKIT\b|\bGROFERS\b/i, label: "Blinkit", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bMAKEMYTRIP\b|\bMAKE\s*MY\s*TRIP\b/i, label: "MakeMyTrip", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bGOIBIBO\b/i, label: "Goibibo", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bCLEARTRIP\b/i, label: "Cleartrip", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bAGODA\b/i, label: "Agoda", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bBOOKING\.?COM\b|\bBOOKING COM\b/i, label: "Booking.com", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bYATRA\b/i, label: "Yatra", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bIXIGO\b/i, label: "Ixigo", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bEASEMYTRIP\b/i, label: "EaseMyTrip", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bOLA\b/i, label: "Ola", category: "Transport", intent: "merchant_spend" },
+  { pattern: /\bUBER\b/i, label: "Uber", category: "Transport", intent: "merchant_spend" },
+  { pattern: /\bRAPIDO\b/i, label: "Rapido", category: "Transport", intent: "merchant_spend" },
+  { pattern: /\bLYFT\b/i, label: "Lyft", category: "Transport", intent: "merchant_spend" },
+  { pattern: /\bBOLT\b/i, label: "Bolt", category: "Transport", intent: "merchant_spend" },
   { pattern: /\bPAYTM\b.*\bEXPRESS\b|\bWEB\s+UPI\b.*\bPAYTM\b/i, label: "Paytm", category: "Bills / Utilities", intent: "utility_bill" },
   { pattern: /\bDTDC\b/i, label: "DTDC", category: "Bills / Utilities", intent: "merchant_spend" },
-  { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bMEDPLUS\b|\bAPOLLO\b/i, label: "Pharmacy", category: "Medical / Pharmacy", intent: "medical_spend" },
-  { pattern: /\bWAFFLE\b/i, label: "Waffle Binge", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bMEDPLUS\b|\bAPOLLO\b|\bNETMEDS\b|\bPHARMEASY\b|\b1MG\b/i, label: "Pharmacy", category: "Medical / Pharmacy", intent: "medical_spend" },
   { pattern: /\bRAZORPAY\b/i, label: "Razorpay", category: "Bills / Utilities", intent: "merchant_spend" },
   { pattern: /\bHDFC\s+BANK\s+LTD\b/i, label: "HDFC Bank Ltd", category: "EMI / Loans", intent: "loan_emi" },
   { pattern: /\bLAMBDATEST\b.*\bPRIVATE\b.*\bLIMITED\b/i, label: "LambdaTest India Private Limited", category: "Salary / Income", intent: "salary_income" },
@@ -113,6 +133,17 @@ const BUSINESS_MARKERS = [
   "SOLUTIONS",
   "SOFTWARE",
   "SERVICES",
+  "VENTURES",
+  "LABS",
+  "RETAIL",
+  "DIGITAL",
+  "INTERNET",
+  "LOGISTICS",
+  "SUPERMARKET",
+  "STORE",
+  "STORES",
+  "MART",
+  "EXPRESS",
   "FINANCE",
   "BANK",
   "PHARMACY",
@@ -127,8 +158,15 @@ const BUSINESS_MARKERS = [
   "PAYTM",
   "PINELABS",
   "BIGBASKET",
+  "BLINKIT",
   "ZEPTO",
   "MAKEMYTRIP",
+  "GOIBIBO",
+  "CLEARTRIP",
+  "AGODA",
+  "BOOKING",
+  "IXIGO",
+  "EASEMYTRIP",
   "ANNAPURNA",
   "LAMBDATEST",
   "RAZORPAY",
@@ -153,6 +191,7 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
       /\bREFUND\b/i,
       /\bCASHBACK\b/i,
       /\bCREDITED BY\b/i,
+      /\bSAL\s*CR\b/i,
       /\bLAMBDATEST\b/i,
     ],
   },
@@ -191,17 +230,17 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
   {
     category: "Food / Dining",
     intent: "merchant_spend",
-    patterns: [/\bSWIGGY\b/i, /\bZOMATO\b/i, /\bPIZZA\b/i, /\bRESTAURANT\b/i, /\bCAFE\b/i, /\bWAFFLE\b/i, /\bANNAPURNA\b/i],
+    patterns: [/\bSWIGGY\b/i, /\bZOMATO\b/i, /\bPIZZA\b/i, /\bRESTAURANT\b/i, /\bCAFE\b/i, /\bWAFFLE\b/i, /\bANNAPURNA\b/i, /\bDOMINOS?\b/i, /\bPIZZA HUT\b/i, /\bMCDONALD'?S\b/i, /\bKFC\b/i, /\bBURGER KING\b/i, /\bSUBWAY\b/i, /\bSTARBUCKS\b/i],
   },
   {
     category: "Shopping",
     intent: "merchant_spend",
-    patterns: [/\bFLIPKART\b/i, /\bAMAZON\b/i, /\bMYNTRA\b/i, /\bAJIO\b/i, /\bNYKAA\b/i, /\bBIGBASKET\b/i, /\bZEPTO\b/i],
+    patterns: [/\bFLIPKART\b/i, /\bAMAZON\b/i, /\bMYNTRA\b/i, /\bAJIO\b/i, /\bNYKAA\b/i, /\bBIGBASKET\b/i, /\bZEPTO\b/i, /\bBLINKIT\b/i, /\bMEESHO\b/i, /\bJIOMART\b/i],
   },
   {
     category: "Travel",
     intent: "merchant_spend",
-    patterns: [/\bMAKEMYTRIP\b/i, /\bMAKE\s*MY\s*TRIP\b/i, /\bGOIBIBO\b/i, /\bIRCTC\b/i, /\bYATRA\b/i, /\bUBER\b/i, /\bOLA\b/i],
+    patterns: [/\bMAKEMYTRIP\b/i, /\bMAKE\s*MY\s*TRIP\b/i, /\bGOIBIBO\b/i, /\bIRCTC\b/i, /\bYATRA\b/i, /\bAGODA\b/i, /\bBOOKING\.?COM\b/i, /\bIXIGO\b/i, /\bEASEMYTRIP\b/i],
   },
   {
     category: "Medical / Pharmacy",
@@ -211,12 +250,12 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
   {
     category: "Bills / Utilities",
     intent: "utility_bill",
-    patterns: [/\bAIRTEL\b/i, /\bJIO\b/i, /\bBSNL\b/i, /\bBROADBAND\b/i, /\bELECTRICITY\b/i, /\bWATER\b/i, /\bGAS\b/i, /\bDTDC\b/i],
+    patterns: [/\bAIRTEL\b/i, /\bJIO\b/i, /\bBSNL\b/i, /\bBROADBAND\b/i, /\bELECTRICITY\b/i, /\bWATER\b/i, /\bGAS\b/i, /\bDTDC\b/i, /\bPAYTM\b.*\bEXPRESS\b/i, /\bWEB\s+UPI\b.*\bPAYTM\b/i, /\bMOBILE RECHARGE\b/i, /\bPOSTPAID\b/i, /\bFASTAG\b/i],
   },
   {
     category: "Transport",
     intent: "merchant_spend",
-    patterns: [/\bOLA\b/i, /\bUBER\b/i, /\bRAPIDO\b/i, /\bFASTAG\b/i, /\bFUEL\b/i, /\bPETROL\b/i],
+    patterns: [/\bOLA\b/i, /\bUBER\b/i, /\bRAPIDO\b/i, /\bLYFT\b/i, /\bBOLT\b/i, /\bFASTAG\b/i, /\bFUEL\b/i, /\bPETROL\b/i, /\bDIESEL\b/i, /\bMETRO\b/i],
   },
   {
     category: "Rent / Housing",
@@ -317,8 +356,16 @@ function looksLikeBusiness(raw: string, label: string): boolean {
   if (extractAlias(raw)) return true
   const upper = `${raw} ${label}`.toUpperCase()
   if (BUSINESS_MARKERS.some((token) => upper.includes(token))) return true
-  if (/\b(LTD|LIMITED|PRIVATE|PVT|LLP|INC|TECHNOLOGIES|SOLUTIONS|SERVICES|ONLINE|MARKETPLACE|FOODS|PAYTM|PINELABS)\b/i.test(upper)) return true
+  if (/\b(LTD|LIMITED|PRIVATE|PVT|LLP|INC|TECHNOLOGIES|SOLUTIONS|SERVICES|ONLINE|MARKETPLACE|FOODS|PAYTM|PINELABS|LABS|VENTURES|RETAIL|DIGITAL|INTERNET|LOGISTICS|STORE|STORES|MART)\b/i.test(upper)) return true
   return false
+}
+
+function looksLikeEmployerIncome(raw: string, type: "debit" | "credit"): boolean {
+  if (type !== "credit") return false
+  if (!hasTransferRail(raw)) return false
+  const upper = raw.toUpperCase()
+  if (/\b(REFUND|CASHBACK|REVERSAL|REWARD|INTEREST)\b/.test(upper)) return false
+  return looksLikeBusiness(raw, extractEntityLabel(raw))
 }
 
 function isNoisyLabel(label: string): boolean {
@@ -345,7 +392,7 @@ export function classifyTransaction({ rawDescription, type }: ClassificationInpu
   const alias = extractAlias(raw)
   const label = extractEntityLabel(raw)
 
-  if (type === "credit" && hasTransferRail(raw) && looksLikeBusiness(raw, label)) {
+  if (looksLikeEmployerIncome(raw, type)) {
     return {
       description: label,
       category: "Salary / Income",
@@ -422,6 +469,8 @@ export function shouldRefineWithAI(result: ClassificationResult, rawDescription:
   if (result.confidence === "low") return true
   if (result.category === "Transfers" && /\b(PAYU|RAZORPAY|LTD|PRIVATE|TECHNOLOGIES)\b/i.test(rawDescription)) return true
   if (result.category === "UPI Payments" && !looksLikePerson(result.description)) return true
+  if (hasUpiRail(rawDescription) && looksLikeBusiness(rawDescription, result.description)) return true
+  if (result.category === "Salary / Income" && /\b(REFUND|CASHBACK|REVERSAL|REWARD)\b/i.test(rawDescription)) return true
   return isNoisyLabel(result.description)
 }
 
@@ -448,6 +497,12 @@ Rules:
 - ACH D / NACH / ECS / mandate debits => EMI / Loans unless clearly bank fees
 - NEFT / IMPS / RTGS => Transfers
 - UPI with company/merchant names => classify by merchant (Swiggy => Food / Dining, Flipkart/BigBasket/Zepto => Shopping, MakeMyTrip => Travel, Paytm Express/Web UPI => Bills / Utilities, etc.)
+- Popular merchant hints:
+  - Food / Dining: Swiggy, Zomato, EatClub, Box8, Faasos, Domino's, Pizza Hut, McDonald's, KFC, Burger King, Subway, Starbucks, Annapurna Foods
+  - Shopping: Flipkart, Amazon, Myntra, Ajio, Nykaa, Meesho, JioMart, BigBasket, Zepto, Blinkit
+  - Travel: MakeMyTrip, Goibibo, Cleartrip, Agoda, Booking.com, Yatra, Ixigo, EaseMyTrip
+  - Transport: Ola, Uber, Rapido, Lyft, Bolt
+  - Medical / Pharmacy: MedPlus, Apollo, NetMeds, PharmEasy, Angel Chemist
 - UPI with only person/payee names and no clear merchant => UPI Payments
 - Employer/company incoming NEFT/IMPS/RTGS credits => Salary / Income
 - Chemist/pharmacy/medical stores => Medical / Pharmacy
