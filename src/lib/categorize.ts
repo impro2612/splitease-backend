@@ -300,6 +300,18 @@ function compactWhitespace(value: string): string {
   return value.replace(/\s+/g, " ").trim()
 }
 
+function normalizeTransactionText(value: string): string {
+  return compactWhitespace(value)
+    .replace(/\bPRI\s*VATE\b/gi, "PRIVATE")
+    .replace(/\bLIM\s*ITED\b/gi, "LIMITED")
+    .replace(/\bPAY\s+TM\b/gi, "PAYTM")
+    .replace(/\bMAKE\s+MY\s+TRIP\b/gi, "MAKEMYTRIP")
+    .replace(/\bLAMBDA\s*TEST\b/gi, "LAMBDATEST")
+    .replace(/\bLAMBDATESTINDIA\b/gi, "LAMBDATEST INDIA")
+    .replace(/\bPAYMENT\s+ON\s+CRED\b/gi, "PAYMENT ON CRED")
+    .replace(/\bWEB\s+UPI\b/gi, "WEB UPI")
+}
+
 function toTitleCase(value: string): string {
   return value
     .toLowerCase()
@@ -394,10 +406,16 @@ function looksLikeBusiness(raw: string, label: string): boolean {
 
 function looksLikeEmployerIncome(raw: string, type: "debit" | "credit"): boolean {
   if (type !== "credit") return false
-  if (!hasTransferRail(raw)) return false
-  const upper = raw.toUpperCase()
+  const normalized = normalizeTransactionText(raw)
+  const upper = normalized.toUpperCase()
   if (/\b(REFUND|CASHBACK|REVERSAL|REWARD|INTEREST)\b/.test(upper)) return false
-  return looksLikeBusiness(raw, extractEntityLabel(raw))
+  const label = extractEntityLabel(normalized)
+  if (hasTransferRail(normalized) && looksLikeBusiness(normalized, label)) return true
+  if (/\b(CR|CREDIT|SALARY|PAYROLL|INCOME)\b/.test(upper) && looksLikeBusiness(normalized, label)) return true
+  if (looksLikeBusiness(normalized, label) && !hasUpiRail(normalized) && !/\b(ACH|NACH|ECS|MANDATE|EMI|LOAN|CHARGE|FEE)\b/.test(upper)) {
+    return true
+  }
+  return false
 }
 
 function isNoisyLabel(label: string): boolean {
@@ -420,7 +438,7 @@ function hasUpiRail(raw: string): boolean {
 }
 
 export function classifyTransaction({ rawDescription, type }: ClassificationInput): ClassificationResult {
-  const raw = compactWhitespace(rawDescription)
+  const raw = normalizeTransactionText(rawDescription)
   const alias = extractAlias(raw)
   const label = extractEntityLabel(raw)
 
@@ -501,15 +519,50 @@ export function shouldRefineWithAI(result: ClassificationResult, rawDescription:
   if (result.confidence === "low") return true
   if (result.category === "Transfers" && /\b(PAYU|RAZORPAY|LTD|PRIVATE|TECHNOLOGIES)\b/i.test(rawDescription)) return true
   if (result.category === "UPI Payments" && !looksLikePerson(result.description)) return true
-  if (hasUpiRail(rawDescription) && looksLikeBusiness(rawDescription, result.description)) return true
+  if (
+    hasUpiRail(rawDescription) &&
+    looksLikeBusiness(rawDescription, result.description) &&
+    result.category === "UPI Payments"
+  ) return true
   if (result.category === "Salary / Income" && /\b(REFUND|CASHBACK|REVERSAL|REWARD)\b/i.test(rawDescription)) return true
   return isNoisyLabel(result.description)
 }
 
-export async function batchRefineTransactionsWithAI(inputs: AIRefineInput[]): Promise<Record<string, AIRefineResult>> {
-  if (!process.env.GEMINI_API_KEY || inputs.length === 0) return {}
+function isGenericCategory(category: Category): boolean {
+  return category === "Miscellaneous" || category === "UPI Payments" || category === "Transfers"
+}
 
-  const unique = inputs.filter((item) => !categoryCache.has(item.key)).slice(0, 40)
+function reconcileAIResult(
+  original: AIRefineInput,
+  aiLabel: string,
+  aiCategory: Category
+): AIRefineResult {
+  const base = classifyTransaction({
+    rawDescription: original.rawDescription,
+    type: original.type,
+  })
+
+  let category = aiCategory
+  if (base.category === "Salary / Income" && aiCategory === "Miscellaneous") {
+    category = "Salary / Income"
+  } else if (!isGenericCategory(base.category) && isGenericCategory(aiCategory)) {
+    category = base.category
+  } else if (base.category !== "Miscellaneous" && aiCategory === "Miscellaneous") {
+    category = base.category
+  }
+
+  const description = compactWhitespace(aiLabel).slice(0, 48) || base.description
+  return {
+    description,
+    category,
+  }
+}
+
+export async function batchRefineTransactionsWithAI(inputs: AIRefineInput[]): Promise<Record<string, AIRefineResult>> {
+  const geminiKey = process.env.GEMINI_API_KEY
+  if (!geminiKey || inputs.length === 0) return {}
+
+  const unique = inputs.filter((item) => !categoryCache.has(item.key))
   const resultMap: Record<string, AIRefineResult> = {}
 
   for (const item of inputs) {
@@ -519,7 +572,8 @@ export async function batchRefineTransactionsWithAI(inputs: AIRefineInput[]): Pr
 
   if (!unique.length) return resultMap
 
-  const prompt = `
+  const refineChunk = async (chunk: typeof unique) => {
+    const prompt = `
 You classify Indian bank-statement transactions.
 
 Allowed categories: ${CATEGORIES.join(" | ")}
@@ -527,7 +581,8 @@ Allowed categories: ${CATEGORIES.join(" | ")}
 Rules:
 - CRED / PAYMENT ON CRED => Credit Card Payments
 - ACH D / NACH / ECS / mandate debits => EMI / Loans unless clearly bank fees
-- NEFT / IMPS / RTGS => Transfers
+- Employer/company incoming NEFT/IMPS/RTGS credits => Salary / Income
+- Plain NEFT / IMPS / RTGS transfers without employer/company context => Transfers
 - UPI with company/merchant names => classify by merchant (Swiggy => Food / Dining, Flipkart/BigBasket/Zepto => Shopping, MakeMyTrip => Travel, Paytm Express/Web UPI => Bills / Utilities, etc.)
 - Popular merchant hints:
   - Food / Dining: Swiggy, Zomato, EatClub, Box8, Faasos, Domino's, Pizza Hut, McDonald's, KFC, Burger King, Subway, Starbucks, Annapurna Foods
@@ -536,7 +591,6 @@ Rules:
   - Transport: Ola, Uber, Rapido, Lyft, Bolt
   - Medical / Pharmacy: MedPlus, Apollo, NetMeds, PharmEasy, Angel Chemist
 - UPI with only person/payee names and no clear merchant => UPI Payments
-- Employer/company incoming NEFT/IMPS/RTGS credits => Salary / Income
 - Chemist/pharmacy/medical stores => Medical / Pharmacy
 - Charges/fees/penalty/interest => Bank Charges
 - Swiggy/Zomato => Food / Dining
@@ -550,7 +604,7 @@ Each item must be:
 Keep label short, human-readable, 2-5 words, no refs/account numbers.
 
 Transactions:
-${unique.map((item) => JSON.stringify({
+${chunk.map((item) => JSON.stringify({
   key: item.key,
   raw: item.rawDescription,
   currentLabel: item.description,
@@ -560,8 +614,7 @@ ${unique.map((item) => JSON.stringify({
 })).join("\n")}
 `.trim()
 
-  try {
-    const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
+    const genAI = new GoogleGenerativeAI(geminiKey)
     const model = genAI.getGenerativeModel({
       model: "gemini-2.5-flash-lite",
       generationConfig: { maxOutputTokens: 2048, temperature: 0 },
@@ -570,19 +623,27 @@ ${unique.map((item) => JSON.stringify({
     const response = await model.generateContent(prompt)
     const text = response.response.text().trim()
     const jsonMatch = text.match(/\[[\s\S]*\]/)
-    if (!jsonMatch) return resultMap
+    if (!jsonMatch) return
 
     const parsed = JSON.parse(jsonMatch[0]) as Array<{ key: string; label: string; category: string }>
     for (const item of parsed) {
       if (!item?.key || !item?.label || !CATEGORIES.includes(item.category as Category)) continue
-      const refined = {
-        description: compactWhitespace(item.label).slice(0, 48),
-        category: item.category as Category,
-      }
+      const original = chunk.find((candidate) => candidate.key === item.key)
+      if (!original) continue
+      const refined = reconcileAIResult(
+        original,
+        item.label,
+        item.category as Category
+      )
       categoryCache.set(item.key, refined)
       resultMap[item.key] = refined
     }
+  }
 
+  try {
+    for (let i = 0; i < unique.length; i += 40) {
+      await refineChunk(unique.slice(i, i + 40))
+    }
     return resultMap
   } catch (err) {
     console.error("Gemini classify error:", err)
