@@ -62,7 +62,7 @@ type AIRefineResult = {
 const categoryCache = new Map<string, AIRefineResult>()
 
 const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category; intent?: Intent }> = [
-  { pattern: /\bCRED(CLUB)?\b|PAYMENT ON CRED/i, label: "CRED Club", category: "Credit Card Payments", intent: "credit_card_payment" },
+  { pattern: /\bCRED(CLUB)?\b|PAYMENT ON CRED|\bCHEQ\b|\bMOBIKWIK\b.*\bZIP\b|\bSIMPL\b|\bLAZY ?PAY\b|\bUNI ?CARD\b|\bONECARD\b|\bSLICE\b|\bRING\b/i, label: "Credit Card Payment", category: "Credit Card Payments", intent: "credit_card_payment" },
   { pattern: /\bSWIGGY(DINEOUT|DINERS)?\b/i, label: "Swiggy", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bZOMATO\b/i, label: "Zomato", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bEATCLUB\b|\bEAT\.?CLUB\b|\bBOX8\b|\bFAASOS\b/i, label: "EatClub", category: "Food / Dining", intent: "merchant_spend" },
@@ -105,12 +105,12 @@ const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category
   { pattern: /\bDTDC\b/i, label: "DTDC", category: "Bills / Utilities", intent: "merchant_spend" },
   { pattern: /\bAIRTEL\b|\bJIO\b|\bVODAFONE\b|\bVI\b|\bBSNL\b|\bVERIZON\b|\bAT&T\b|\bT-MOBILE\b|\bEE\b|\bO2\b|\bORANGE\b/i, label: "Telecom", category: "Bills / Utilities", intent: "utility_bill" },
   { pattern: /\bELECTRIC\b|\bELECTRICITY\b|\bPOWER\b|\bWATER\b|\bGAS\b|\bSEWER\b|\bUTILITY\b|\bFASTAG\b/i, label: "Utilities", category: "Bills / Utilities", intent: "utility_bill" },
-  { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bMEDPLUS\b|\bAPOLLO\b|\bNETMEDS\b|\bPHARMEASY\b|\b1MG\b/i, label: "Pharmacy", category: "Medical / Pharmacy", intent: "medical_spend" },
-  { pattern: /\bCVS\b|\bWALGREENS\b|\bRITE ?AID\b|\bBOOTS\b/i, label: "Pharmacy", category: "Medical / Pharmacy", intent: "medical_spend" },
+  { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bPHARMA\b|\bMEDPLUS\b|\bAPOLLO\b|\bNETMEDS\b|\bPHARMEASY\b|\b1MG\b|\bMEDICAL\b|\bDENTAL\b|\bDERMA(?:TOLOGY)?\b|\bPATHO(?:LOGY)?\b|\bDIAGNOSTIC\b|\bDIAGNOSTICS\b|\bCLINIC\b|\bHOSPITAL\b|\bLAB\b|\bLABS\b|\bSCAN\b|\bIMAGING\b|\bXRAY\b|\bX-RAY\b|\bMRI\b|\bCT ?SCAN\b|\bBLOOD ?TEST\b/i, label: "Medical", category: "Medical / Pharmacy", intent: "medical_spend" },
+  { pattern: /\bCVS\b|\bWALGREENS\b|\bRITE ?AID\b|\bBOOTS\b|\bQUEST ?DIAGNOSTICS\b|\bLABCORP\b|\bMAYO\b|\bKAISER\b|\bNHS\b|\bOPTUM\b/i, label: "Medical", category: "Medical / Pharmacy", intent: "medical_spend" },
   { pattern: /\bRAZORPAY\b/i, label: "Razorpay", category: "Bills / Utilities", intent: "merchant_spend" },
   { pattern: /\bHDFC\s+BANK\s+LTD\b/i, label: "HDFC Bank Ltd", category: "EMI / Loans", intent: "loan_emi" },
   { pattern: /\bLAMBDATEST\b.*\bPRIVATE\b.*\bLIMITED\b/i, label: "LambdaTest India Private Limited", category: "Salary / Income", intent: "salary_income" },
-  { pattern: /\bNETFLIX\b|\bSPOTIFY\b|\bHOTSTAR\b|\bYOUTUBE PREMIUM\b|\bAMAZON PRIME\b|\bAPPLE\b.*\bSUBSCRIPTION\b|\bDISNEY\+?\b|\bHULU\b|\bMAX\b|\bPEACOCK\b|\bXBOX\b|\bPLAYSTATION\b/i, label: "Subscription", category: "Subscriptions", intent: "subscription_payment" },
+  { pattern: /\bNETFLIX\b|\bSPOTIFY\b|\bHOTSTAR\b|\bDISNEY\+?\b|\bJIOHOTSTAR\b|\bSONYLIV\b|\bZEE5\b|\bVOOT\b|\bYOUTUBE PREMIUM\b|\bAMAZON PRIME\b|\bPRIME VIDEO\b|\bAPPLE\b.*\bSUBSCRIPTION\b|\bAPPLE\b.*\bTV\b|\bAPPLE MUSIC\b|\bHULU\b|\bMAX\b|\bHBO\b|\bPEACOCK\b|\bPARAMOUNT\+?\b|\bDISCOVERY\+?\b|\bCRUNCHYROLL\b|\bAUDIBLE\b|\bPANDORA\b|\bDEEZER\b|\bTIDAL\b|\bXBOX\b|\bPLAYSTATION\b|\bNINTENDO\b|\bCHATGPT\b|\bOPENAI\b|\bANTHROPIC\b|\bNOTION\b|\bCANVA\b|\bADOBE\b|\bMICROSOFT\s*365\b/i, label: "Subscription", category: "Subscriptions", intent: "subscription_payment" },
 ]
 
 const BANKING_NOISE = [
@@ -230,7 +230,7 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
   {
     category: "Credit Card Payments",
     intent: "credit_card_payment",
-    patterns: [/\bCRED(CLUB)?\b/i, /\bPAYMENT ON CRED\b/i, /\bCREDIT CARD\b/i, /\bCC PAYMENT\b/i],
+    patterns: [/\bCRED(CLUB)?\b/i, /\bPAYMENT ON CRED\b/i, /\bCREDIT CARD\b/i, /\bCC PAYMENT\b/i, /\bCHEQ\b/i, /\bMOBIKWIK\b.*\bZIP\b/i, /\bSIMPL\b/i, /\bLAZY ?PAY\b/i, /\bUNI ?CARD\b/i, /\bONECARD\b/i, /\bSLICE\b/i, /\bRING\b/i],
   },
   {
     category: "EMI / Loans",
@@ -257,7 +257,7 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
   {
     category: "Subscriptions",
     intent: "subscription_payment",
-    patterns: [/\bNETFLIX\b/i, /\bSPOTIFY\b/i, /\bHOTSTAR\b/i, /\bYOUTUBE PREMIUM\b/i, /\bAMAZON PRIME\b/i],
+    patterns: [/\bNETFLIX\b/i, /\bSPOTIFY\b/i, /\bHOTSTAR\b/i, /\bDISNEY\+?\b/i, /\bJIOHOTSTAR\b/i, /\bSONYLIV\b/i, /\bZEE5\b/i, /\bVOOT\b/i, /\bYOUTUBE PREMIUM\b/i, /\bAMAZON PRIME\b/i, /\bPRIME VIDEO\b/i, /\bAPPLE MUSIC\b/i, /\bAPPLE\b.*\bTV\b/i, /\bHULU\b/i, /\bMAX\b/i, /\bHBO\b/i, /\bPEACOCK\b/i, /\bPARAMOUNT\+?\b/i, /\bDISCOVERY\+?\b/i, /\bCRUNCHYROLL\b/i, /\bAUDIBLE\b/i, /\bPANDORA\b/i, /\bDEEZER\b/i, /\bTIDAL\b/i, /\bXBOX\b/i, /\bPLAYSTATION\b/i, /\bNINTENDO\b/i, /\bCHATGPT\b/i, /\bOPENAI\b/i, /\bANTHROPIC\b/i, /\bNOTION\b/i, /\bCANVA\b/i, /\bADOBE\b/i, /\bMICROSOFT\s*365\b/i],
   },
   {
     category: "Food / Dining",
@@ -277,7 +277,7 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
   {
     category: "Medical / Pharmacy",
     intent: "medical_spend",
-    patterns: [/\bCHEMIST\b/i, /\bPHARMACY\b/i, /\bMEDICAL\b/i, /\bMEDPLUS\b/i, /\bAPOLLO\b/i],
+    patterns: [/\bCHEMIST\b/i, /\bPHARMACY\b/i, /\bPHARMA\b/i, /\bMEDICAL\b/i, /\bMEDPLUS\b/i, /\bAPOLLO\b/i, /\bNETMEDS\b/i, /\bPHARMEASY\b/i, /\b1MG\b/i, /\bDENTAL\b/i, /\bDERMA(?:TOLOGY)?\b/i, /\bPATHO(?:LOGY)?\b/i, /\bDIAGNOSTIC\b/i, /\bDIAGNOSTICS\b/i, /\bCLINIC\b/i, /\bHOSPITAL\b/i, /\bLAB\b/i, /\bLABS\b/i, /\bSCAN\b/i, /\bIMAGING\b/i, /\bXRAY\b/i, /\bX-RAY\b/i, /\bMRI\b/i, /\bCT ?SCAN\b/i, /\bBLOOD ?TEST\b/i, /\bCVS\b/i, /\bWALGREENS\b/i, /\bRITE ?AID\b/i, /\bBOOTS\b/i, /\bQUEST ?DIAGNOSTICS\b/i, /\bLABCORP\b/i],
   },
   {
     category: "Bills / Utilities",
@@ -579,7 +579,7 @@ You classify Indian bank-statement transactions.
 Allowed categories: ${CATEGORIES.join(" | ")}
 
 Rules:
-- CRED / PAYMENT ON CRED => Credit Card Payments
+- CRED / PAYMENT ON CRED / CHEQ / LazyPay / Simpl / OneCard / Slice / Ring / MobiKwik ZIP => Credit Card Payments
 - ACH D / NACH / ECS / mandate debits => EMI / Loans unless clearly bank fees
 - Employer/company incoming NEFT/IMPS/RTGS credits => Salary / Income
 - Plain NEFT / IMPS / RTGS transfers without employer/company context => Transfers
@@ -589,7 +589,8 @@ Rules:
   - Shopping: Flipkart, Amazon, Myntra, Ajio, Nykaa, Meesho, JioMart, BigBasket, Zepto, Blinkit
   - Travel: MakeMyTrip, Goibibo, Cleartrip, Agoda, Booking.com, Yatra, Ixigo, EaseMyTrip
   - Transport: Ola, Uber, Rapido, Lyft, Bolt
-  - Medical / Pharmacy: MedPlus, Apollo, NetMeds, PharmEasy, Angel Chemist
+  - Medical / Pharmacy: MedPlus, Apollo, NetMeds, PharmEasy, Angel Chemist, CVS, Walgreens, Boots, medical/pharma/clinic/diagnostic keywords
+  - Subscriptions: Netflix, Prime Video, Disney+, Hotstar, SonyLIV, Zee5, Hulu, Max, Peacock, Paramount+, Discovery+, Spotify, Audible, Apple Music
 - UPI with only person/payee names and no clear merchant => UPI Payments
 - Chemist/pharmacy/medical stores => Medical / Pharmacy
 - Charges/fees/penalty/interest => Bank Charges
