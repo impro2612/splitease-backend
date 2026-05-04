@@ -6,6 +6,7 @@ export const CATEGORIES = [
   "Food / Dining",
   "Rent / Housing",
   "Transport",
+  "Travel",
   "Shopping",
   "Subscriptions",
   "UPI Payments",
@@ -66,6 +67,11 @@ const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category
   { pattern: /\bZOMATO\b/i, label: "Zomato", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bFLIPKART\b/i, label: "Flipkart", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bAMAZON\b/i, label: "Amazon", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bBIGBASKET\b/i, label: "BigBasket", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bZEPTO\b/i, label: "Zepto", category: "Shopping", intent: "merchant_spend" },
+  { pattern: /\bANNAPURNA\b.*\bFOODS?\b|\bANNAPURNA\s+FOODS?\b/i, label: "Annapurna Foods", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bMAKEMYTRIP\b|\bMAKE\s*MY\s*TRIP\b/i, label: "MakeMyTrip", category: "Travel", intent: "merchant_spend" },
+  { pattern: /\bPAYTM\b.*\bEXPRESS\b|\bWEB\s+UPI\b.*\bPAYTM\b/i, label: "Paytm", category: "Bills / Utilities", intent: "utility_bill" },
   { pattern: /\bDTDC\b/i, label: "DTDC", category: "Bills / Utilities", intent: "merchant_spend" },
   { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bMEDPLUS\b|\bAPOLLO\b/i, label: "Pharmacy", category: "Medical / Pharmacy", intent: "medical_spend" },
   { pattern: /\bWAFFLE\b/i, label: "Waffle Binge", category: "Food / Dining", intent: "merchant_spend" },
@@ -111,7 +117,20 @@ const BUSINESS_MARKERS = [
   "BANK",
   "PHARMACY",
   "CHEMIST",
+  "MARKETPLACE",
+  "ONLINE",
+  "FOODS",
+  "FOODS",
+  "TRAVEL",
+  "TRIP",
   "PAYMENTS",
+  "PAYTM",
+  "PINELABS",
+  "BIGBASKET",
+  "ZEPTO",
+  "MAKEMYTRIP",
+  "ANNAPURNA",
+  "LAMBDATEST",
   "RAZORPAY",
   "CREDCLUB",
   "FLIPKART",
@@ -133,9 +152,6 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
       /\bREIMBURSEMENT\b/i,
       /\bREFUND\b/i,
       /\bCASHBACK\b/i,
-      /\bNEFT CR\b/i,
-      /\bIMPS CR\b/i,
-      /\bRTGS CR\b/i,
       /\bCREDITED BY\b/i,
       /\bLAMBDATEST\b/i,
     ],
@@ -173,19 +189,19 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
     patterns: [/\bNETFLIX\b/i, /\bSPOTIFY\b/i, /\bHOTSTAR\b/i, /\bYOUTUBE PREMIUM\b/i, /\bAMAZON PRIME\b/i],
   },
   {
-    category: "UPI Payments",
-    intent: "merchant_spend",
-    patterns: [/\bUPI\b/i],
-  },
-  {
     category: "Food / Dining",
     intent: "merchant_spend",
-    patterns: [/\bSWIGGY\b/i, /\bZOMATO\b/i, /\bPIZZA\b/i, /\bRESTAURANT\b/i, /\bCAFE\b/i, /\bWAFFLE\b/i],
+    patterns: [/\bSWIGGY\b/i, /\bZOMATO\b/i, /\bPIZZA\b/i, /\bRESTAURANT\b/i, /\bCAFE\b/i, /\bWAFFLE\b/i, /\bANNAPURNA\b/i],
   },
   {
     category: "Shopping",
     intent: "merchant_spend",
-    patterns: [/\bFLIPKART\b/i, /\bAMAZON\b/i, /\bMYNTRA\b/i, /\bAJIO\b/i, /\bNYKAA\b/i],
+    patterns: [/\bFLIPKART\b/i, /\bAMAZON\b/i, /\bMYNTRA\b/i, /\bAJIO\b/i, /\bNYKAA\b/i, /\bBIGBASKET\b/i, /\bZEPTO\b/i],
+  },
+  {
+    category: "Travel",
+    intent: "merchant_spend",
+    patterns: [/\bMAKEMYTRIP\b/i, /\bMAKE\s*MY\s*TRIP\b/i, /\bGOIBIBO\b/i, /\bIRCTC\b/i, /\bYATRA\b/i, /\bUBER\b/i, /\bOLA\b/i],
   },
   {
     category: "Medical / Pharmacy",
@@ -297,6 +313,14 @@ function looksLikePerson(label: string): boolean {
   return tokens.every((token) => /^[A-Za-z]+$/.test(token))
 }
 
+function looksLikeBusiness(raw: string, label: string): boolean {
+  if (extractAlias(raw)) return true
+  const upper = `${raw} ${label}`.toUpperCase()
+  if (BUSINESS_MARKERS.some((token) => upper.includes(token))) return true
+  if (/\b(LTD|LIMITED|PRIVATE|PVT|LLP|INC|TECHNOLOGIES|SOLUTIONS|SERVICES|ONLINE|MARKETPLACE|FOODS|PAYTM|PINELABS)\b/i.test(upper)) return true
+  return false
+}
+
 function isNoisyLabel(label: string): boolean {
   const upper = label.toUpperCase()
   return (
@@ -308,11 +332,36 @@ function isNoisyLabel(label: string): boolean {
   )
 }
 
+function hasTransferRail(raw: string): boolean {
+  return /\b(NEFT|IMPS|RTGS)\b/i.test(raw)
+}
+
+function hasUpiRail(raw: string): boolean {
+  return /\bUPI\b/i.test(raw)
+}
+
 export function classifyTransaction({ rawDescription, type }: ClassificationInput): ClassificationResult {
   const raw = compactWhitespace(rawDescription)
-  const upper = raw.toUpperCase()
   const alias = extractAlias(raw)
   const label = extractEntityLabel(raw)
+
+  if (type === "credit" && hasTransferRail(raw) && looksLikeBusiness(raw, label)) {
+    return {
+      description: label,
+      category: "Salary / Income",
+      intent: "salary_income",
+      confidence: "high",
+    }
+  }
+
+  if (hasTransferRail(raw)) {
+    return {
+      description: label,
+      category: "Transfers",
+      intent: "p2p_transfer",
+      confidence: "high",
+    }
+  }
 
   if (alias?.category && alias?.intent) {
     return {
@@ -324,7 +373,7 @@ export function classifyTransaction({ rawDescription, type }: ClassificationInpu
   }
 
   for (const rule of CATEGORY_RULES) {
-    if (rule.patterns.some((pattern) => pattern.test(upper))) {
+    if (rule.patterns.some((pattern) => pattern.test(raw))) {
       return {
         description: label,
         category: rule.category,
@@ -334,21 +383,21 @@ export function classifyTransaction({ rawDescription, type }: ClassificationInpu
     }
   }
 
-  if (type === "credit" && looksLikePerson(label)) {
+  if (hasUpiRail(raw) && looksLikePerson(label)) {
     return {
       description: label,
-      category: "Transfers",
-      intent: "p2p_transfer",
+      category: "UPI Payments",
+      intent: "merchant_spend",
       confidence: "medium",
     }
   }
 
-  if (type === "debit" && looksLikePerson(label)) {
+  if (hasUpiRail(raw)) {
     return {
       description: label,
-      category: "Transfers",
-      intent: "p2p_transfer",
-      confidence: "medium",
+      category: looksLikeBusiness(raw, label) ? "Miscellaneous" : "UPI Payments",
+      intent: "merchant_spend",
+      confidence: looksLikeBusiness(raw, label) || isNoisyLabel(label) ? "low" : "medium",
     }
   }
 
@@ -372,6 +421,7 @@ export function shouldRefineWithAI(result: ClassificationResult, rawDescription:
   if (result.category === "Miscellaneous") return true
   if (result.confidence === "low") return true
   if (result.category === "Transfers" && /\b(PAYU|RAZORPAY|LTD|PRIVATE|TECHNOLOGIES)\b/i.test(rawDescription)) return true
+  if (result.category === "UPI Payments" && !looksLikePerson(result.description)) return true
   return isNoisyLabel(result.description)
 }
 
@@ -396,13 +446,15 @@ Allowed categories: ${CATEGORIES.join(" | ")}
 Rules:
 - CRED / PAYMENT ON CRED => Credit Card Payments
 - ACH D / NACH / ECS / mandate debits => EMI / Loans unless clearly bank fees
-- UPI debit rows => UPI Payments
-- Person-to-person UPI names => Transfers
-- Employer/company incoming credits => Salary / Income
+- NEFT / IMPS / RTGS => Transfers
+- UPI with company/merchant names => classify by merchant (Swiggy => Food / Dining, Flipkart/BigBasket/Zepto => Shopping, MakeMyTrip => Travel, Paytm Express/Web UPI => Bills / Utilities, etc.)
+- UPI with only person/payee names and no clear merchant => UPI Payments
+- Employer/company incoming NEFT/IMPS/RTGS credits => Salary / Income
 - Chemist/pharmacy/medical stores => Medical / Pharmacy
 - Charges/fees/penalty/interest => Bank Charges
 - Swiggy/Zomato => Food / Dining
 - Flipkart/Amazon/Myntra => Shopping
+- MakeMyTrip / GoIbibo / Yatra => Travel
 
 Return ONLY JSON array.
 Each item must be:
