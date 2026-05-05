@@ -110,6 +110,12 @@ export async function POST(
           return Response.json({ error: `User ${s.userId} is not a member of this group` }, { status: 400 })
         }
       }
+      const invalidPct = (splits as { userId: string; percentage: number }[]).find(
+        (s) => s.percentage <= 0 || s.percentage > 100
+      )
+      if (invalidPct) {
+        return Response.json({ error: "Each percentage must be between 0 and 100" }, { status: 400 })
+      }
       const pctSum = (splits as { userId: string; percentage: number }[]).reduce((acc, s) => acc + s.percentage, 0)
       if (Math.abs(pctSum - 100) > 0.01) {
         return Response.json(

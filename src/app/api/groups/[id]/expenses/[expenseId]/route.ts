@@ -144,26 +144,27 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
-    await prisma.expenseSplit.deleteMany({ where: { expenseId } })
-
-    const updated = await prisma.expense.update({
-      where: { id: expenseId },
-      data: {
-        ...(description !== undefined && { description }),
-        ...(newAmountCents !== expense.amount && { amount: newAmountCents }),
-        ...(reqSplitType !== undefined && { splitType: reqSplitType }),
-        ...(category !== undefined && { category }),
-        ...(paidById !== undefined && { paidById }),
-        ...(date !== undefined && { date: new Date(date) }),
-        ...(currency !== undefined && { currency }),
-        splits: { create: newSplitData },
-      },
-      include: {
-        paidBy: { select: { id: true, name: true, email: true, image: true } },
-        splits: {
-          include: { user: { select: { id: true, name: true, email: true, image: true } } },
+    const updated = await prisma.$transaction(async (tx) => {
+      await tx.expenseSplit.deleteMany({ where: { expenseId } })
+      return tx.expense.update({
+        where: { id: expenseId },
+        data: {
+          ...(description !== undefined && { description }),
+          ...(newAmountCents !== expense.amount && { amount: newAmountCents }),
+          ...(reqSplitType !== undefined && { splitType: reqSplitType }),
+          ...(category !== undefined && { category }),
+          ...(paidById !== undefined && { paidById }),
+          ...(date !== undefined && { date: new Date(date) }),
+          ...(currency !== undefined && { currency }),
+          splits: { create: newSplitData },
         },
-      },
+        include: {
+          paidBy: { select: { id: true, name: true, email: true, image: true } },
+          splits: {
+            include: { user: { select: { id: true, name: true, email: true, image: true } } },
+          },
+        },
+      })
     })
 
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
