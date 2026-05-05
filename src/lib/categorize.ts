@@ -61,7 +61,7 @@ type AIRefineResult = {
 
 const categoryCache = new Map<string, AIRefineResult>()
 
-const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category; intent?: Intent }> = [
+const LABEL_ALIASES: Array<{ pattern: RegExp; label?: string; category?: Category; intent?: Intent }> = [
   { pattern: /\bCRED(CLUB)?\b|PAYMENT ON CRED|\bCHEQ\b|\bMOBIKWIK\b.*\bZIP\b|\bSIMPL\b|\bLAZY ?PAY\b|\bUNI ?CARD\b|\bONECARD\b|\bSLICE\b|\bRING\b/i, label: "Credit Card Payment", category: "Credit Card Payments", intent: "credit_card_payment" },
   { pattern: /\bSWIGGY(DINEOUT|DINERS)?\b/i, label: "Swiggy", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bZOMATO\b/i, label: "Zomato", category: "Food / Dining", intent: "merchant_spend" },
@@ -71,7 +71,7 @@ const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category
   { pattern: /\bCHIPOTLE\b|\bTACO BELL\b|\bDUNKIN\b|\bCOSTA\b|\bTIM HORTONS\b|\bPAPA JOHN'?S\b/i, label: "Restaurant", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bANNAPURNA\b.*\bFOODS?\b|\bANNAPURNA\s+FOODS?\b/i, label: "Annapurna Foods", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bWAFFLE\b/i, label: "Waffle Binge", category: "Food / Dining", intent: "merchant_spend" },
-  { pattern: /\bSWEETS?\b|\bMITHAI\b|\bHALWAI\b|\bBAKERY\b|\bCONFECTION(?:ERY)?\b|\bDESSERT\b|\bICE ?CREAM\b|\bGELATO\b|\bSNACKS?\b|\bEATERY\b|\bBISTRO\b|\bRESTAURANTS?\b|\bRESTRO\b|\bDHABA\b|\bPURE ?VEG\b|\bBAR\b|\bPUB\b|\bLOUNGE\b/i, label: "Food Business", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bSWEETS?\b|\bMITHAI\b|\bHALWAI\b|\bBAKERY\b|\bCONFECTION(?:ERY)?\b|\bDESSERT\b|\bICE ?CREAM\b|\bGELATO\b|\bSNACKS?\b|\bEATERY\b|\bBISTRO\b|\bRESTAURANTS?\b|\bRESTRO\b|\bDHABA\b|\bPURE ?VEG\b|\bBAR\b|\bPUB\b|\bLOUNGE\b/i, category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bFLIPKART\b/i, label: "Flipkart", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bAMAZON\b/i, label: "Amazon", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bMYNTRA\b/i, label: "Myntra", category: "Shopping", intent: "merchant_spend" },
@@ -106,8 +106,8 @@ const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category
   { pattern: /\bDTDC\b/i, label: "DTDC", category: "Bills / Utilities", intent: "merchant_spend" },
   { pattern: /\bAIRTEL\b|\bJIO\b|\bVODAFONE\b|\bVI\b|\bBSNL\b|\bVERIZON\b|\bAT&T\b|\bT-MOBILE\b|\bEE\b|\bO2\b|\bORANGE\b/i, label: "Telecom", category: "Bills / Utilities", intent: "utility_bill" },
   { pattern: /\bELECTRIC\b|\bELECTRICITY\b|\bPOWER\b|\bWATER\b|\bGAS\b|\bSEWER\b|\bUTILITY\b|\bFASTAG\b/i, label: "Utilities", category: "Bills / Utilities", intent: "utility_bill" },
-  { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bPHARMA\b|\bMEDPLUS\b|\bAPOLLO\b|\bNETMEDS\b|\bPHARMEASY\b|\b1MG\b|\bMEDICAL\b|\bDENTAL\b|\bDERMA(?:TOLOGY)?\b|\bPATHO(?:LOGY)?\b|\bDIAGNOSTIC\b|\bDIAGNOSTICS\b|\bCLINIC\b|\bHOSPITAL\b|\bLAB\b|\bLABS\b|\bSCAN\b|\bIMAGING\b|\bXRAY\b|\bX-RAY\b|\bMRI\b|\bCT ?SCAN\b|\bBLOOD ?TEST\b/i, label: "Medical", category: "Medical / Pharmacy", intent: "medical_spend" },
-  { pattern: /\bCVS\b|\bWALGREENS\b|\bRITE ?AID\b|\bBOOTS\b|\bQUEST ?DIAGNOSTICS\b|\bLABCORP\b|\bMAYO\b|\bKAISER\b|\bNHS\b|\bOPTUM\b/i, label: "Medical", category: "Medical / Pharmacy", intent: "medical_spend" },
+  { pattern: /\bANGEL\b.*\bCHEMIST\b|\bCHEMIST\b|\bPHARMACY\b|\bPHARMA\b|\bMEDPLUS\b|\bAPOLLO\b|\bNETMEDS\b|\bPHARMEASY\b|\b1MG\b|\bMEDICAL\b|\bDENTAL\b|\bDERMA(?:TOLOGY)?\b|\bPATHO(?:LOGY)?\b|\bDIAGNOSTIC\b|\bDIAGNOSTICS\b|\bCLINIC\b|\bHOSPITAL\b|\bLAB\b|\bLABS\b|\bSCAN\b|\bIMAGING\b|\bXRAY\b|\bX-RAY\b|\bMRI\b|\bCT ?SCAN\b|\bBLOOD ?TEST\b/i, category: "Medical / Pharmacy", intent: "medical_spend" },
+  { pattern: /\bCVS\b|\bWALGREENS\b|\bRITE ?AID\b|\bBOOTS\b|\bQUEST ?DIAGNOSTICS\b|\bLABCORP\b|\bMAYO\b|\bKAISER\b|\bNHS\b|\bOPTUM\b/i, category: "Medical / Pharmacy", intent: "medical_spend" },
   { pattern: /\bRAZORPAY\b/i, label: "Razorpay", category: "Bills / Utilities", intent: "merchant_spend" },
   { pattern: /\bHDFC\s+BANK\s+LTD\b/i, label: "HDFC Bank Ltd", category: "EMI / Loans", intent: "loan_emi" },
   { pattern: /\bLAMBDATEST\b.*\bPRIVATE\b.*\bLIMITED\b/i, label: "LambdaTest India Private Limited", category: "Salary / Income", intent: "salary_income" },
@@ -370,7 +370,7 @@ function extractAlphaTokens(raw: string): string[] {
 
 function extractEntityLabel(raw: string): string {
   const alias = extractAlias(raw)
-  if (alias) return alias.label
+  if (alias?.label) return alias.label
 
   const tokens = uniqueTokens(extractAlphaTokens(raw))
   if (!tokens.length) return "Miscellaneous"
@@ -463,7 +463,7 @@ export function classifyTransaction({ rawDescription, type }: ClassificationInpu
 
   if (alias?.category && alias?.intent) {
     return {
-      description: alias.label,
+      description: alias.label ?? label,
       category: alias.category,
       intent: alias.intent,
       confidence: "high",
