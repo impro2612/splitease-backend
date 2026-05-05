@@ -71,6 +71,7 @@ const LABEL_ALIASES: Array<{ pattern: RegExp; label: string; category?: Category
   { pattern: /\bCHIPOTLE\b|\bTACO BELL\b|\bDUNKIN\b|\bCOSTA\b|\bTIM HORTONS\b|\bPAPA JOHN'?S\b/i, label: "Restaurant", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bANNAPURNA\b.*\bFOODS?\b|\bANNAPURNA\s+FOODS?\b/i, label: "Annapurna Foods", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bWAFFLE\b/i, label: "Waffle Binge", category: "Food / Dining", intent: "merchant_spend" },
+  { pattern: /\bSWEETS?\b|\bMITHAI\b|\bHALWAI\b|\bBAKERY\b|\bCONFECTION(?:ERY)?\b|\bDESSERT\b|\bICE ?CREAM\b|\bGELATO\b|\bSNACKS?\b|\bEATERY\b|\bBISTRO\b|\bRESTAURANTS?\b|\bRESTRO\b|\bDHABA\b|\bPURE ?VEG\b|\bBAR\b|\bPUB\b|\bLOUNGE\b/i, label: "Food Business", category: "Food / Dining", intent: "merchant_spend" },
   { pattern: /\bFLIPKART\b/i, label: "Flipkart", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bAMAZON\b/i, label: "Amazon", category: "Shopping", intent: "merchant_spend" },
   { pattern: /\bMYNTRA\b/i, label: "Myntra", category: "Shopping", intent: "merchant_spend" },
@@ -262,7 +263,7 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
   {
     category: "Food / Dining",
     intent: "merchant_spend",
-    patterns: [/\bSWIGGY\b/i, /\bZOMATO\b/i, /\bPIZZA\b/i, /\bRESTAURANT\b/i, /\bCAFE\b/i, /\bWAFFLE\b/i, /\bANNAPURNA\b/i, /\bDOMINOS?\b/i, /\bPIZZA HUT\b/i, /\bMCDONALD'?S\b/i, /\bKFC\b/i, /\bBURGER KING\b/i, /\bSUBWAY\b/i, /\bSTARBUCKS\b/i, /\bDOORDASH\b/i, /\bUBER ?EATS\b/i, /\bGRUBHUB\b/i, /\bDELIVEROO\b/i, /\bJUST ?EAT\b/i, /\bPOSTMATES\b/i, /\bFOODPANDA\b/i, /\bGLOVO\b/i],
+    patterns: [/\bSWIGGY\b/i, /\bZOMATO\b/i, /\bPIZZA\b/i, /\bRESTAURANT\b/i, /\bRESTAURANTS?\b/i, /\bRESTRO\b/i, /\bCAFE\b/i, /\bWAFFLE\b/i, /\bANNAPURNA\b/i, /\bDOMINOS?\b/i, /\bPIZZA HUT\b/i, /\bMCDONALD'?S\b/i, /\bKFC\b/i, /\bBURGER KING\b/i, /\bSUBWAY\b/i, /\bSTARBUCKS\b/i, /\bDOORDASH\b/i, /\bUBER ?EATS\b/i, /\bGRUBHUB\b/i, /\bDELIVEROO\b/i, /\bJUST ?EAT\b/i, /\bPOSTMATES\b/i, /\bFOODPANDA\b/i, /\bGLOVO\b/i, /\bSWEETS?\b/i, /\bMITHAI\b/i, /\bHALWAI\b/i, /\bBAKERY\b/i, /\bCONFECTION(?:ERY)?\b/i, /\bDESSERT\b/i, /\bICE ?CREAM\b/i, /\bGELATO\b/i, /\bSNACKS?\b/i, /\bEATERY\b/i, /\bBISTRO\b/i, /\bDHABA\b/i, /\bPURE ?VEG\b/i, /\bBAR\b/i, /\bPUB\b/i, /\bLOUNGE\b/i],
   },
   {
     category: "Shopping",
