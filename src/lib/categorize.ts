@@ -4,7 +4,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai"
 export const CATEGORIES = [
   "Salary / Income",
   "Food / Dining",
-  "Rent / Housing",
   "Transport",
   "Travel",
   "Shopping",
@@ -306,11 +305,6 @@ const CATEGORY_RULES: Array<{ category: Category; intent: Intent; patterns: RegE
     category: "Transport",
     intent: "merchant_spend",
     patterns: [/\bOLA\b/i, /\bUBER\b/i, /\bRAPIDO\b/i, /\bLYFT\b/i, /\bBOLT\b/i, /\bCABIFY\b/i, /\bDIDI\b/i, /\bGRAB\b/i, /\bGOJEK\b/i, /\b99APP\b/i, /\bFREE NOW\b/i, /\bFASTAG\b/i, /\bFUEL\b/i, /\bPETROL\b/i, /\bDIESEL\b/i, /\bMETRO\b/i],
-  },
-  {
-    category: "Rent / Housing",
-    intent: "merchant_spend",
-    patterns: [/\bRENT\b/i, /\bLANDLORD\b/i, /\bSOCIETY\b/i, /\bMAINTENANCE\b/i],
   },
 ]
 
