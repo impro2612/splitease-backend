@@ -13,6 +13,114 @@ import { getResolvedPDFJS } from "unpdf"
 
 export const maxDuration = 300
 
+const MONTH_NAME_TO_NUMBER: Record<string, string> = {
+  jan: "01",
+  january: "01",
+  feb: "02",
+  february: "02",
+  mar: "03",
+  march: "03",
+  apr: "04",
+  april: "04",
+  may: "05",
+  jun: "06",
+  june: "06",
+  jul: "07",
+  july: "07",
+  aug: "08",
+  august: "08",
+  sep: "09",
+  sept: "09",
+  september: "09",
+  oct: "10",
+  october: "10",
+  nov: "11",
+  november: "11",
+  dec: "12",
+  december: "12",
+}
+
+function normalizeWhitespace(value: string) {
+  return value.replace(/\s+/g, " ").trim()
+}
+
+function monthFromName(name: string) {
+  return MONTH_NAME_TO_NUMBER[name.toLowerCase()] ?? null
+}
+
+function buildMonthKey(year: string, month: string) {
+  const yyyy = year.length === 2 ? `20${year}` : year
+  return `${yyyy}-${month.padStart(2, "0")}`
+}
+
+function parseDateToken(token: string): string | null {
+  const numeric = token.match(/\b(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})\b/)
+  if (numeric) {
+    return buildMonthKey(numeric[3], numeric[2])
+  }
+
+  const dayMonthNameYear = token.match(/\b\d{1,2}\s+([A-Za-z]{3,9})[,]?\s+(\d{2,4})\b/i)
+  if (dayMonthNameYear) {
+    const month = monthFromName(dayMonthNameYear[1])
+    if (month) return buildMonthKey(dayMonthNameYear[2], month)
+  }
+
+  const monthNameYear = token.match(/\b([A-Za-z]{3,9})\s+(\d{2,4})\b/i)
+  if (monthNameYear) {
+    const month = monthFromName(monthNameYear[1])
+    if (month) return buildMonthKey(monthNameYear[2], month)
+  }
+
+  const monthYearNumeric = token.match(/\b(\d{1,2})[\/\-.](\d{4})\b/)
+  if (monthYearNumeric) {
+    return buildMonthKey(monthYearNumeric[2], monthYearNumeric[1])
+  }
+
+  const yearMonthNumeric = token.match(/\b(\d{4})[\/\-.](\d{1,2})\b/)
+  if (yearMonthNumeric) {
+    return buildMonthKey(yearMonthNumeric[1], yearMonthNumeric[2])
+  }
+
+  return null
+}
+
+function detectStatementMonth(firstPageText: string): string | null {
+  const text = normalizeWhitespace(firstPageText)
+
+  const rangePatterns = [
+    /\bfrom\b\s*[:\-]?\s*([A-Za-z0-9\/\-. ,]+?)\s+\bto\b\s*[:\-]?\s*([A-Za-z0-9\/\-. ,]+?)(?=\b(?:statement|account|date|period|narration|withdrawal|deposit)\b|$)/i,
+    /\bstatement\s+period\b\s*[:\-]?\s*([A-Za-z0-9\/\-. ,]+?)\s+(?:to|-)\s*([A-Za-z0-9\/\-. ,]+?)(?=\b(?:statement|account|date|narration|withdrawal|deposit)\b|$)/i,
+    /\bperiod\b\s*[:\-]?\s*([A-Za-z0-9\/\-. ,]+?)\s+(?:to|-)\s*([A-Za-z0-9\/\-. ,]+?)(?=\b(?:statement|account|date|narration|withdrawal|deposit)\b|$)/i,
+  ]
+
+  for (const pattern of rangePatterns) {
+    const match = text.match(pattern)
+    if (!match) continue
+    const startMonth = parseDateToken(match[1])
+    const endMonth = parseDateToken(match[2])
+    if (startMonth && endMonth && startMonth === endMonth) return startMonth
+    if (startMonth) return startMonth
+    if (endMonth) return endMonth
+  }
+
+  const directPatterns = [
+    /\b(?:statement\s+of\s+account|statement|month)\b[^A-Za-z0-9]{0,10}([A-Za-z]{3,9}\s+\d{4})\b/i,
+    /\b(?:statement\s+of\s+account|statement|month)\b[^A-Za-z0-9]{0,10}(\d{1,2}[\/\-.]\d{4})\b/i,
+    /\b([A-Za-z]{3,9}\s+\d{4})\b/,
+    /\b(\d{1,2}[\/\-.]\d{4})\b/,
+    /\b(\d{4}[\/\-.]\d{1,2})\b/,
+  ]
+
+  for (const pattern of directPatterns) {
+    const match = text.match(pattern)
+    if (!match) continue
+    const month = parseDateToken(match[1])
+    if (month) return month
+  }
+
+  return null
+}
+
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -25,6 +133,7 @@ export async function POST(req: NextRequest) {
   }
 
   const password = (formData.get("password") as string | null) ?? undefined
+  const expectedMonth = (formData.get("expectedMonth") as string | null)?.trim() ?? ""
   const arrayBuffer = await file.arrayBuffer()
   const uint8Array = new Uint8Array(arrayBuffer)
   // Capture base64 before passing to pdf.js — pdf.js transfers/detaches the ArrayBuffer
@@ -41,12 +150,30 @@ export async function POST(req: NextRequest) {
     // Quick text check to rule out scanned/image PDFs
     const firstPage = await doc.getPage(1)
     const content = await firstPage.getTextContent()
+    const firstPageText = normalizeWhitespace(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      content.items.map((item: any) => item.str ?? "").join(" ")
+    )
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const textLen = content.items.reduce((n: number, item: any) => n + (item.str?.length ?? 0), 0)
     if (textLen < 50) {
       return Response.json({
         error: "This looks like a scanned/image PDF. Please use a downloaded digital statement.",
       }, { status: 400 })
+    }
+
+    if (expectedMonth) {
+      const detectedMonth = detectStatementMonth(firstPageText)
+      if (!detectedMonth) {
+        return Response.json({
+          error: "Could not verify Month/Year from PDF. Please use a monthly bank statement with a visible statement period.",
+        }, { status: 400 })
+      }
+      if (detectedMonth !== expectedMonth) {
+        return Response.json({
+          error: "Month/Year of PDF does not match the Import section.",
+        }, { status: 400 })
+      }
     }
   } catch (err: unknown) {
     const msg = (err instanceof Error ? err.message : String(err)).toLowerCase()
