@@ -61,6 +61,23 @@ type AIRefineResult = {
 
 const categoryCache = new Map<string, AIRefineResult>()
 
+const GENERIC_ALIAS_LABELS = new Set([
+  "Restaurant",
+  "Food Delivery",
+  "Retail",
+  "Shopping",
+  "Groceries",
+  "Travel Booking",
+  "Airline",
+  "Hotel",
+  "Ride Hailing",
+  "Telecom",
+  "Utilities",
+  "Medical",
+  "Subscription",
+  "Credit Card Payment",
+])
+
 const LABEL_ALIASES: Array<{ pattern: RegExp; label?: string; category?: Category; intent?: Intent }> = [
   { pattern: /\bCRED(CLUB)?\b|PAYMENT ON CRED|\bCHEQ\b|\bMOBIKWIK\b.*\bZIP\b|\bSIMPL\b|\bLAZY ?PAY\b|\bUNI ?CARD\b|\bONECARD\b|\bSLICE\b|\bRING\b/i, label: "Credit Card Payment", category: "Credit Card Payments", intent: "credit_card_payment" },
   { pattern: /\bSWIGGY(DINEOUT|DINERS)?\b/i, label: "Swiggy", category: "Food / Dining", intent: "merchant_spend" },
@@ -338,6 +355,11 @@ function extractAlias(raw: string) {
   return LABEL_ALIASES.find((alias) => alias.pattern.test(raw))
 }
 
+function shouldUseAliasLabel(label: string | undefined): label is string {
+  if (!label) return false
+  return !GENERIC_ALIAS_LABELS.has(label)
+}
+
 function stripRailPrefix(raw: string): string {
   return raw
     .replace(/^(UPI|IMPS|NEFT(?:\s+CR|\s+DR)?|RTGS(?:\s+CR|\s+DR)?|ACH\s*D|ACHD|NACH|ECS|HL)\s*[-:\s]*/i, "")
@@ -370,7 +392,7 @@ function extractAlphaTokens(raw: string): string[] {
 
 function extractEntityLabel(raw: string): string {
   const alias = extractAlias(raw)
-  if (alias?.label) return alias.label
+  if (shouldUseAliasLabel(alias?.label)) return alias.label
 
   const tokens = uniqueTokens(extractAlphaTokens(raw))
   if (!tokens.length) return "Miscellaneous"
@@ -463,7 +485,7 @@ export function classifyTransaction({ rawDescription, type }: ClassificationInpu
 
   if (alias?.category && alias?.intent) {
     return {
-      description: alias.label ?? label,
+      description: shouldUseAliasLabel(alias.label) ? alias.label : label,
       category: alias.category,
       intent: alias.intent,
       confidence: "high",
@@ -552,7 +574,13 @@ function reconcileAIResult(
     category = base.category
   }
 
-  const description = compactWhitespace(aiLabel).slice(0, 48) || base.description
+  const cleanedAiLabel = compactWhitespace(aiLabel).slice(0, 48)
+  const description =
+    !cleanedAiLabel ||
+    GENERIC_ALIAS_LABELS.has(cleanedAiLabel) ||
+    /^(food|shopping|travel|transport|medical|utilities|subscription|transfer)s?$/i.test(cleanedAiLabel)
+      ? base.description
+      : cleanedAiLabel
   return {
     description,
     category,
