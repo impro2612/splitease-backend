@@ -83,11 +83,8 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Friend request already exists" }, { status: 409 })
     }
 
-    // If the same person whose request was rejected tries again, block it.
-    // The other party (original addressee) is allowed to initiate fresh.
-    if (existing?.status === "REJECTED" && existing.requesterId === user.id) {
-      return Response.json({ error: "Friend request was declined" }, { status: 409 })
-    }
+    // REJECTED: allow re-send freely — rejection means "not now", not "never".
+    // If Bob never wants requests from Alice, he should block her instead.
 
     if (existing) {
       friend = await prisma.friend.update({
