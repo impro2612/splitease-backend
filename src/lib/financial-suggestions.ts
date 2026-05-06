@@ -6,6 +6,7 @@ type MonthStats = {
   title: string
   summary: string
   recommendations: string[]
+  source: "gemini" | "built"
 }
 
 function monthTitle(month: string) {
@@ -75,6 +76,7 @@ function buildFallbackSuggestions(input: {
   return {
     analyzedMonth: input.month,
     title,
+    source: "built",
     summary: `Here’s your financial advisor summary for ${title}. Focus on the biggest expense buckets, recurring habits, and how much you were able to save after spending.`,
     recommendations: recommendations.slice(0, 6),
   }
@@ -211,6 +213,7 @@ Monthly data:
     return {
       analyzedMonth: month,
       title: fallback.title,
+      source: "gemini",
       summary: String(parsed.summary || fallback.summary).trim(),
       recommendations: recommendations.length > 0 ? recommendations : fallback.recommendations,
     }

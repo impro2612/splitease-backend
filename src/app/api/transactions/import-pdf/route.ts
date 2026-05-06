@@ -349,6 +349,7 @@ export async function POST(req: NextRequest) {
         update: {
           title: generated.title,
           summary: generated.summary,
+          source: generated.source,
           recommendations: JSON.stringify(generated.recommendations),
         },
         create: {
@@ -356,6 +357,7 @@ export async function POST(req: NextRequest) {
           analyzedMonth: generated.analyzedMonth,
           title: generated.title,
           summary: generated.summary,
+          source: generated.source,
           recommendations: JSON.stringify(generated.recommendations),
         },
       })

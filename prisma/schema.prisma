@@ -296,6 +296,7 @@ model PersonalSuggestion {
   analyzedMonth   String   // YYYY-MM
   title           String
   summary         String
+  source          String?  // gemini | built
   recommendations String   // JSON array of strings
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
