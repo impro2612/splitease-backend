@@ -9,6 +9,7 @@ import {
   makeHash,
   shouldRefineWithAI,
 } from "@/lib/categorize"
+import { generateSuggestionsForMonth } from "@/lib/financial-suggestions"
 import { getResolvedPDFJS } from "unpdf"
 
 export const maxDuration = 300
@@ -333,6 +334,38 @@ export async function POST(req: NextRequest) {
       await prisma.personalTransaction.create({ data: t })
       imported++
     } catch { /* duplicate hash — skip */ }
+  }
+
+  if (expectedMonth) {
+    const existingSuggestion = await prisma.personalSuggestion.findUnique({
+      where: { userId: user.id },
+      select: { analyzedMonth: true },
+    })
+
+    const shouldRefreshSuggestions =
+      !existingSuggestion || expectedMonth >= existingSuggestion.analyzedMonth
+
+    if (shouldRefreshSuggestions) {
+      const generated = await generateSuggestionsForMonth(user.id, expectedMonth)
+      if (generated) {
+        await prisma.personalSuggestion.upsert({
+          where: { userId: user.id },
+          update: {
+            analyzedMonth: generated.analyzedMonth,
+            title: generated.title,
+            summary: generated.summary,
+            recommendations: JSON.stringify(generated.recommendations),
+          },
+          create: {
+            userId: user.id,
+            analyzedMonth: generated.analyzedMonth,
+            title: generated.title,
+            summary: generated.summary,
+            recommendations: JSON.stringify(generated.recommendations),
+          },
+        })
+      }
+    }
   }
 
   return Response.json({ imported, total: rawTransactions.length })
