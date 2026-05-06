@@ -111,7 +111,7 @@ export async function POST(
         }
       }
       const invalidPct = (splits as { userId: string; percentage: number }[]).find(
-        (s) => s.percentage <= 0 || s.percentage > 100
+        (s) => !Number.isFinite(s.percentage) || s.percentage <= 0 || s.percentage > 100
       )
       if (invalidPct) {
         return Response.json({ error: "Each percentage must be between 0 and 100" }, { status: 400 })
