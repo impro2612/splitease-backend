@@ -32,10 +32,9 @@ export async function GET(
 
   const whereBase = {
     OR: [
-      { senderId: user.id, receiverId: friendId },
-      { senderId: friendId, receiverId: user.id },
+      { senderId: user.id, receiverId: friendId, senderDeleted: false },
+      { senderId: friendId, receiverId: user.id, receiverDeleted: false },
     ],
-    deleted: false,
   }
 
   const messages = await prisma.message.findMany({

@@ -219,6 +219,8 @@ model Message {
   clientId   String   @unique // client-generated UUID for deduplication
   read       Boolean  @default(false)
   deleted    Boolean  @default(false)
+  senderDeleted   Boolean  @default(false)
+  receiverDeleted Boolean  @default(false)
   createdAt  DateTime @default(now())
 
   sender   User @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
@@ -286,4 +288,3 @@ model PersonalBudget {
 
   @@unique([userId, category])
 }
-

@@ -81,12 +81,31 @@ export async function DELETE(req: NextRequest) {
     return Response.json({ error: "ids required" }, { status: 400 })
   }
 
-  await prisma.message.updateMany({
-    where: {
-      id: { in: ids },
-      senderId: user.id,
-    },
-    data: { deleted: true },
+  await prisma.$transaction(async (tx) => {
+    await tx.message.updateMany({
+      where: {
+        id: { in: ids },
+        senderId: user.id,
+      },
+      data: { senderDeleted: true },
+    })
+
+    await tx.message.updateMany({
+      where: {
+        id: { in: ids },
+        receiverId: user.id,
+      },
+      data: { receiverDeleted: true },
+    })
+
+    await tx.message.updateMany({
+      where: {
+        id: { in: ids },
+        senderDeleted: true,
+        receiverDeleted: true,
+      },
+      data: { deleted: true },
+    })
   })
 
   return Response.json({ ok: true })

@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
           receiverId: userId,
           senderId: { in: friendIds },
           read: false,
-          deleted: false,
+          receiverDeleted: false,
         },
         select: { senderId: true },
         distinct: ["senderId"],

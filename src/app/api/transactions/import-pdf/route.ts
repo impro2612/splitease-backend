@@ -225,7 +225,13 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  let rawTransactions: { date: string; amount: number; description: string; type: "debit" | "credit" }[]
+  let rawTransactions: {
+    date: string
+    amount: number
+    description: string
+    type: "debit" | "credit"
+    reference?: string
+  }[]
   try {
     const pyRes = await callParser()
 
@@ -261,6 +267,7 @@ export async function POST(req: NextRequest) {
     description: string; rawDescription: string; category: string
     bank: string | null; source: "pdf"; hash: string; createdAt: Date
   }[] = []
+  const occurrenceByKey = new Map<string, number>()
 
   for (const t of rawTransactions) {
     if (!t.date || !(t.amount > 0) || !t.description) continue
@@ -272,7 +279,14 @@ export async function POST(req: NextRequest) {
       type: t.type,
     })
     const amount = Math.round(t.amount * 100)
-    const hash = makeHash(user.id, t.date, amount, `${t.type}|${t.description}`)
+    const reference = t.reference?.trim() || ""
+    const occurrenceBaseKey = `${t.date}|${amount}|${t.type}|${t.description}|${reference}`
+    const occurrence = occurrenceByKey.get(occurrenceBaseKey) ?? 0
+    occurrenceByKey.set(occurrenceBaseKey, occurrence + 1)
+    const hashKey = reference
+      ? `${t.type}|${reference}|${t.description}`
+      : `${t.type}|${t.description}|occurrence:${occurrence}`
+    const hash = makeHash(user.id, t.date, amount, hashKey)
     const idx = txns.length
 
     txns.push({
