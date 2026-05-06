@@ -337,34 +337,28 @@ export async function POST(req: NextRequest) {
   }
 
   if (expectedMonth) {
-    const existingSuggestion = await prisma.personalSuggestion.findUnique({
-      where: { userId: user.id },
-      select: { analyzedMonth: true },
-    })
-
-    const shouldRefreshSuggestions =
-      !existingSuggestion || expectedMonth >= existingSuggestion.analyzedMonth
-
-    if (shouldRefreshSuggestions) {
-      const generated = await generateSuggestionsForMonth(user.id, expectedMonth)
-      if (generated) {
-        await prisma.personalSuggestion.upsert({
-          where: { userId: user.id },
-          update: {
-            analyzedMonth: generated.analyzedMonth,
-            title: generated.title,
-            summary: generated.summary,
-            recommendations: JSON.stringify(generated.recommendations),
-          },
-          create: {
+    const generated = await generateSuggestionsForMonth(user.id, expectedMonth)
+    if (generated) {
+      await prisma.personalSuggestion.upsert({
+        where: {
+          userId_analyzedMonth: {
             userId: user.id,
             analyzedMonth: generated.analyzedMonth,
-            title: generated.title,
-            summary: generated.summary,
-            recommendations: JSON.stringify(generated.recommendations),
           },
-        })
-      }
+        },
+        update: {
+          title: generated.title,
+          summary: generated.summary,
+          recommendations: JSON.stringify(generated.recommendations),
+        },
+        create: {
+          userId: user.id,
+          analyzedMonth: generated.analyzedMonth,
+          title: generated.title,
+          summary: generated.summary,
+          recommendations: JSON.stringify(generated.recommendations),
+        },
+      })
     }
   }
 

@@ -6,8 +6,19 @@ export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
+  const { searchParams } = new URL(req.url)
+  const month = searchParams.get("month")?.trim()
+  if (!month) {
+    return Response.json({ error: "Month is required" }, { status: 400 })
+  }
+
   const suggestion = await prisma.personalSuggestion.findUnique({
-    where: { userId: user.id },
+    where: {
+      userId_analyzedMonth: {
+        userId: user.id,
+        analyzedMonth: month,
+      },
+    },
     select: {
       analyzedMonth: true,
       title: true,

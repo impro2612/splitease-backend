@@ -41,7 +41,7 @@ model User {
   targetActivities      Activity[]    @relation("ActivityTarget")
   personalTransactions  PersonalTransaction[]
   personalBudgets       PersonalBudget[]
-  personalSuggestion    PersonalSuggestion?
+  personalSuggestions   PersonalSuggestion[]
 }
 
 model PushDevice {
@@ -292,7 +292,7 @@ model PersonalBudget {
 
 model PersonalSuggestion {
   id              String   @id @default(cuid())
-  userId          String   @unique
+  userId          String
   analyzedMonth   String   // YYYY-MM
   title           String
   summary         String
@@ -301,4 +301,7 @@ model PersonalSuggestion {
   updatedAt       DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, analyzedMonth])
+  @@index([userId, updatedAt])
 }
