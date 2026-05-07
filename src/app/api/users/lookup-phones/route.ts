@@ -6,7 +6,7 @@ import { normalizePhone } from "@/lib/phone"
 
 const PHONES_PER_REQUEST = 100
 const RATE_LIMIT_WINDOW_MS = 60_000
-const RATE_LIMIT_MAX = 10
+const RATE_LIMIT_MAX = 20  // 20 × 100 = 2000 contacts per minute
 
 // In-memory rate limiter: userId → [timestamp, ...] — replace with Redis in prod
 const rateLimitMap = new Map<string, number[]>()
