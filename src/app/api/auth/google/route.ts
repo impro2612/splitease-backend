@@ -1,7 +1,23 @@
 import { NextRequest } from "next/server"
 import * as jose from "jose"
+import * as crypto from "crypto"
 import { prisma } from "@/lib/prisma"
 import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
+
+async function issueTokenPair(userId: string, email: string, name: string | null) {
+  const accessToken = await new jose.SignJWT({ id: userId, email, name })
+    .setProtectedHeader({ alg: "HS256" })
+    .setExpirationTime("7d")
+    .sign(MOBILE_JWT_SECRET)
+
+  const rawRefresh = crypto.randomBytes(64).toString("hex")
+  const tokenHash = crypto.createHash("sha256").update(rawRefresh).digest("hex")
+  const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
+
+  await prisma.mobileRefreshToken.create({ data: { userId, tokenHash, expiresAt } })
+
+  return { accessToken, refreshToken: rawRefresh }
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -48,17 +64,11 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    const token = await new jose.SignJWT({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-    })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("30d")
-      .sign(MOBILE_JWT_SECRET)
+    const { accessToken, refreshToken } = await issueTokenPair(user.id, user.email, user.name)
 
     return Response.json({
-      token,
+      token: accessToken,
+      refreshToken,
       user: { id: user.id, name: user.name, email: user.email, image: user.image },
       needsPhone: !user.phoneNormalized,
     })

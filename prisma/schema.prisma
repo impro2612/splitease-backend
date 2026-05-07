@@ -22,6 +22,7 @@ model User {
 
   accounts              Account[]
   sessions              Session[]
+  mobileRefreshTokens   MobileRefreshToken[]
   groupMembers          GroupMember[]
   paidExpenses          Expense[]     @relation("PaidBy")
   createdExpenses       Expense[]     @relation("CreatedBy")
@@ -98,6 +99,19 @@ model PasswordReset {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model MobileRefreshToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique  // SHA-256 of the raw token — raw never stored
+  expiresAt DateTime
+  usedAt    DateTime?          // set when rotated; re-use after this = token theft
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Group {

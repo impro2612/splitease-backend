@@ -1,6 +1,11 @@
 import { PrismaClient } from "@/generated/prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
 
+if (process.env.NODE_ENV === "production") {
+  if (!process.env.DATABASE_URL) throw new Error("DATABASE_URL is required in production")
+  if (!process.env.TURSO_AUTH_TOKEN) throw new Error("TURSO_AUTH_TOKEN is required in production")
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 }

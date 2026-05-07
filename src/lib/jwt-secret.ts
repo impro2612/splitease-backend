@@ -1,7 +1,7 @@
-const nextAuthSecret = process.env.NEXTAUTH_SECRET?.trim()
+const secret = (process.env.MOBILE_JWT_SECRET ?? process.env.NEXTAUTH_SECRET)?.trim()
 
-if (!nextAuthSecret) {
-  throw new Error("NEXTAUTH_SECRET is required for mobile JWT authentication")
+if (!secret) {
+  throw new Error("MOBILE_JWT_SECRET (or NEXTAUTH_SECRET) is required")
 }
 
-export const MOBILE_JWT_SECRET = new TextEncoder().encode(nextAuthSecret)
+export const MOBILE_JWT_SECRET = new TextEncoder().encode(secret)

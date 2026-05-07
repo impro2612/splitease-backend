@@ -4,6 +4,20 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
 
+const PHONES_PER_REQUEST = 100
+const RATE_LIMIT_WINDOW_MS = 60_000
+const RATE_LIMIT_MAX = 10
+
+// In-memory rate limiter: userId → [timestamp, ...] — replace with Redis in prod
+const rateLimitMap = new Map<string, number[]>()
+function isRateLimited(userId: string): boolean {
+  const now = Date.now()
+  const hits = (rateLimitMap.get(userId) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS)
+  hits.push(now)
+  rateLimitMap.set(userId, hits)
+  return hits.length > RATE_LIMIT_MAX
+}
+
 // POST /api/users/lookup-phones
 // Body: { phones: string[] }
 // Returns: { [sentPhone]: { id, name, email, image } } — keyed by what was sent
@@ -11,11 +25,15 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
+  if (isRateLimited(user.id)) {
+    return Response.json({ error: "Too many requests. Please wait before retrying." }, { status: 429 })
+  }
+
   const { phones } = await req.json()
   if (!Array.isArray(phones) || phones.length === 0) return Response.json({})
 
   const limited = phones
-    .slice(0, 500)
+    .slice(0, PHONES_PER_REQUEST)
     .map((phone) => normalizePhone(String(phone ?? "")))
     .filter(Boolean)
 
