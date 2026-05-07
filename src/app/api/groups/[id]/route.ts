@@ -36,6 +36,9 @@ export async function GET(
           splits: {
             include: { user: { select: { id: true, name: true, email: true, image: true } } },
           },
+          reactions: {
+            select: { id: true, userId: true, emoji: true },
+          },
         },
         orderBy: [{ date: "desc" }, { createdAt: "desc" }],
       },

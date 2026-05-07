@@ -27,6 +27,7 @@ model User {
   paidExpenses          Expense[]     @relation("PaidBy")
   createdExpenses       Expense[]     @relation("CreatedBy")
   expenseSplits         ExpenseSplit[]
+  expenseReactions      ExpenseReaction[]
   sentSettlements       Settlement[]  @relation("FromUser")
   receivedSettlements   Settlement[]  @relation("ToUser")
   sentFriendRequests    Friend[]      @relation("FriendRequester")
@@ -99,6 +100,20 @@ model PasswordReset {
   expiresAt DateTime
   used      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model ExpenseReaction {
+  id        String   @id @default(cuid())
+  expenseId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  expense Expense @relation(fields: [expenseId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([expenseId, userId, emoji])
+  @@index([expenseId])
 }
 
 model MobileRefreshToken {
@@ -179,10 +194,11 @@ model Expense {
   updatedAt   DateTime @updatedAt
   category    String   @default("general")
 
-  group     Group          @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  paidBy    User           @relation("PaidBy", fields: [paidById], references: [id])
-  createdBy User           @relation("CreatedBy", fields: [createdById], references: [id])
+  group     Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  paidBy    User              @relation("PaidBy", fields: [paidById], references: [id])
+  createdBy User              @relation("CreatedBy", fields: [createdById], references: [id])
   splits    ExpenseSplit[]
+  reactions ExpenseReaction[]
 }
 
 model ExpenseSplit {
