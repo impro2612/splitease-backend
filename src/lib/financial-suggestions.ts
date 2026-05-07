@@ -222,8 +222,8 @@ function buildFallbackSuggestions(input: {
     source: "built",
     summary:
       input.income > 0
-        ? `In ${title}, you spent ${rupees(input.expense)} against income of ${rupees(input.income)}, leaving ${input.savings >= 0 ? "savings" : "a shortfall"} of ${rupees(Math.abs(input.savings))}. The biggest improvement opportunity is in your top spending buckets and repeat discretionary transactions.`
-        : `In ${title}, you spent ${rupees(input.expense)}. The best next step is to control your biggest categories and trim repeated non-essential spends.`,
+        ? `In ${title}, your money story was shaped by ${top ? `${top.category.toLowerCase()} taking the biggest share at ${rupees(top.amount)}` : `total spending of ${rupees(input.expense)}`}. You brought in ${rupees(input.income)} and spent ${rupees(input.expense)}, which left ${input.savings >= 0 ? `savings of ${rupees(input.savings)}` : `a shortfall of ${rupees(Math.abs(input.savings))}`}. ${input.recurring[0] ? `${humanizeSuggestionLabel(input.recurring[0].description)} kept showing up through the month, which suggests your everyday habits mattered as much as the big one-time payments.` : `Most of the opportunity now is in your top categories and any repeated convenience spends.`}`
+        : `In ${title}, your month was driven by total spending of ${rupees(input.expense)}${top ? `, with ${top.category.toLowerCase()} leading the outflow at ${rupees(top.amount)}` : ""}. The clearest next step is to bring down your biggest categories and trim repeat non-essential spends before they quietly define the whole month.`,
     recommendations: recommendations.slice(0, 6),
   }
 }
@@ -322,7 +322,7 @@ You are a practical personal financial advisor.
 
 Study this user's monthly expense report for ${fallback.title}. Return ONLY valid JSON:
 {
-  "summary": "2-3 sentence overview in plain English",
+  "summary": "3-4 sentence monthly money story in plain English",
   "recommendations": [
     "Actionable recommendation 1",
     "Actionable recommendation 2",
@@ -333,6 +333,7 @@ Study this user's monthly expense report for ${fallback.title}. Return ONLY vali
 
 Rules:
 - Be clear, simple, and non-technical
+- Make the summary feel like a monthly money story, not a dry dashboard summary
 - Focus on actionable advice, not just a summary of totals
 - Highlight opportunities to save money
 - Point out exactly where spending can be reduced
@@ -344,6 +345,7 @@ Rules:
 - Do not over-focus on person-to-person transfers unless they are repeated and material
 - You may add one or two more important observations if useful
 - Keep recommendations concrete, friendly, and specific to the data
+- In the summary, explain what defined the month, where the money mostly went, and what habit or pattern stood out
 - Do not use markdown, numbering, or bullets inside strings
 - Maximum 6 recommendations
 
