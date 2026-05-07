@@ -5,7 +5,7 @@ import Link from "next/link"
 import { Plus, Users, Receipt, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { formatCurrency, getInitials, formatRelativeTime } from "@/lib/utils"
+import { formatCurrency, getInitials } from "@/lib/utils"
 
 export default async function GroupsPage() {
   const session = await getServerSession(authOptions)

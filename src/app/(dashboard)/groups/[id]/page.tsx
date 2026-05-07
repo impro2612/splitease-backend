@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import {
   ArrowLeft, Plus, Users, Receipt, TrendingUp,
-  Trash2, UserPlus, X, ChevronDown, DollarSign
+  UserPlus, DollarSign
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"

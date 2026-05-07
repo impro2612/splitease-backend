@@ -127,7 +127,7 @@ export async function POST(req: NextRequest) {
     })
 
     return Response.json(friend, { status: 201 })
-  } catch (err) {
+  } catch {
     return Response.json({ error: "Failed to send friend request" }, { status: 500 })
   }
 }

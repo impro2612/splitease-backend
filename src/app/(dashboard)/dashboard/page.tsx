@@ -3,14 +3,13 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { buildBalanceMap, getUserTotals, centsToDisplay } from "@/lib/balance"
 import Link from "next/link"
-import { Plus, TrendingUp, TrendingDown, Users, Receipt, ArrowRight } from "lucide-react"
+import { Plus, TrendingUp, TrendingDown, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { formatCurrency, formatRelativeTime, getInitials, CATEGORY_ICONS } from "@/lib/utils"
+import { Card, CardContent } from "@/components/ui/card"
+import { formatCurrency, formatRelativeTime, CATEGORY_ICONS } from "@/lib/utils"
 
 async function getDashboardData(userId: string) {
-  const [groups, expenses, settlements] = await Promise.all([
+  const [groups, expenses] = await Promise.all([
     prisma.group.findMany({
       where: { members: { some: { userId } } },
       include: {
@@ -36,12 +35,6 @@ async function getDashboardData(userId: string) {
       orderBy: { createdAt: "desc" },
       take: 8,
     }),
-    prisma.settlement.findMany({
-      where: { OR: [{ fromUserId: userId }, { toUserId: userId }] },
-      include: { fromUser: true, toUser: true, group: true },
-      orderBy: { createdAt: "desc" },
-      take: 4,
-    }),
   ])
 
   // Calculate net balances using the shared balance engine
@@ -60,7 +53,7 @@ async function getDashboardData(userId: string) {
   const totalOwed = centsToDisplay(owedCents)
   const totalOwe = centsToDisplay(oweCents)
 
-  return { groups, expenses, settlements, totalOwed, totalOwe }
+  return { groups, expenses, totalOwed, totalOwe }
 }
 
 export default async function DashboardPage() {

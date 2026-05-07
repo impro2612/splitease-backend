@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { buildBalanceMap, getPairwiseNetCents, getNetPerPerson, simplifyDebts, centsToDisplay } from "@/lib/balance"
+import { buildBalanceMap, getPairwiseNetCents, getNetPerPerson, simplifyDebts } from "@/lib/balance"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
 

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { signOut, useSession } from "next-auth/react"
 import {
-  LayoutDashboard, Users, Receipt, UserCheck, LogOut, Plus, Settings
+  LayoutDashboard, Users, UserCheck, LogOut, Plus
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getInitials } from "@/lib/utils"
