@@ -53,18 +53,33 @@ model BorrowEntry {
   id         String    @id @default(cuid())
   lenderId   String
   borrowerId String
-  amount     Int       // stored in paise/cents
+  amount     Int       // stored in paise/cents (original full amount)
   currency   String    @default("INR")
   note       String?
+  date       DateTime  @default(now())
   status     String    @default("PENDING")  // "PENDING" | "SETTLED"
   createdAt  DateTime  @default(now())
   settledAt  DateTime?
 
   lender   User @relation("BorrowLender",   fields: [lenderId],   references: [id], onDelete: Cascade)
   borrower User @relation("BorrowBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
+  payments BorrowPayment[]
 
   @@index([lenderId])
   @@index([borrowerId])
+}
+
+model BorrowPayment {
+  id        String   @id @default(cuid())
+  entryId   String
+  amount    Int      // paise/cents paid back
+  date      DateTime @default(now())
+  note      String?
+  createdAt DateTime @default(now())
+
+  entry BorrowEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
 }
 
 model PushDevice {

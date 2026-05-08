@@ -3,37 +3,42 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 
 function toApi(e: any) {
-  return { ...e, amount: e.amount / 100 }
+  const paidAmount = (e.payments ?? []).reduce((s: number, p: any) => s + p.amount, 0)
+  return {
+    ...e,
+    amount: e.amount / 100,                       // original full amount
+    paidAmount: paidAmount / 100,                  // total paid back so far
+    remainingAmount: (e.amount - paidAmount) / 100, // still outstanding
+    payments: (e.payments ?? []).map((p: any) => ({ ...p, amount: p.amount / 100 })),
+  }
 }
 
-// GET /api/borrow-book — all entries + per-friend summaries
+// GET /api/borrow-book — all entries + per-friend summaries (uses remaining balance)
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const entries = await prisma.borrowEntry.findMany({
-    where: {
-      OR: [{ lenderId: user.id }, { borrowerId: user.id }],
-    },
+    where: { OR: [{ lenderId: user.id }, { borrowerId: user.id }] },
     include: {
       lender:   { select: { id: true, name: true, email: true, image: true } },
       borrower: { select: { id: true, name: true, email: true, image: true } },
+      payments: { orderBy: { date: "asc" } },
     },
     orderBy: { createdAt: "desc" },
   })
 
-  // Build per-friend summary
+  // Build per-friend summary using remaining (not original) amounts
   const friendMap = new Map<string, { friend: any; net: number; pendingCount: number }>()
   for (const e of entries) {
     const friendUser = e.lenderId === user.id ? e.borrower : e.lender
-    const isMine = e.lenderId === user.id  // positive = they owe me
-    const delta = isMine ? e.amount : -e.amount
+    const isMine = e.lenderId === user.id
+    const paid = e.payments.reduce((s, p) => s + p.amount, 0)
+    const remaining = e.amount - paid
+    const delta = isMine ? remaining : -remaining
     const existing = friendMap.get(friendUser.id)
     if (existing) {
-      if (e.status === "PENDING") {
-        existing.net += delta
-        existing.pendingCount++
-      }
+      if (e.status === "PENDING") { existing.net += delta; existing.pendingCount++ }
     } else {
       friendMap.set(friendUser.id, {
         friend: friendUser,
@@ -54,12 +59,11 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { friendId, amount, note, iAmLender, currency } = await req.json()
+  const { friendId, amount, note, iAmLender, currency, date } = await req.json()
   if (!friendId || !amount || amount <= 0) {
     return Response.json({ error: "friendId and positive amount required" }, { status: 400 })
   }
 
-  // Verify friendship
   const friendship = await prisma.friend.findFirst({
     where: {
       status: "ACCEPTED",
@@ -78,10 +82,12 @@ export async function POST(req: NextRequest) {
       amount: Math.round(amount * 100),
       currency: currency ?? "INR",
       note: note ?? null,
+      date: date ? new Date(date) : new Date(),
     },
     include: {
       lender:   { select: { id: true, name: true, email: true, image: true } },
       borrower: { select: { id: true, name: true, email: true, image: true } },
+      payments: true,
     },
   })
 
