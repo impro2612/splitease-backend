@@ -3,8 +3,6 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 
-const ALLOWED_EMOJIS = new Set(["😮", "😂", "👍", "❤️", "🔥", "😢"])
-
 export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string; expenseId: string }> }
@@ -15,7 +13,7 @@ export async function POST(
   const { id: groupId, expenseId } = await params
   const { emoji } = await req.json()
 
-  if (!emoji || !ALLOWED_EMOJIS.has(emoji)) {
+  if (!emoji || typeof emoji !== "string" || [...emoji].length > 2) {
     return Response.json({ error: "Invalid emoji" }, { status: 400 })
   }
 
