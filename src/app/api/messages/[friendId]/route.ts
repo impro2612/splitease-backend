@@ -61,6 +61,9 @@ export async function GET(
       clientId: true,
       read: true,
       createdAt: true,
+      reactions: {
+        select: { id: true, userId: true, emoji: true },
+      },
     },
   })
 
