@@ -41,10 +41,30 @@ model User {
   blockedBy             Block[]       @relation("Blocked")
   actorActivities       Activity[]    @relation("ActivityActor")
   targetActivities      Activity[]    @relation("ActivityTarget")
-  personalTransactions  PersonalTransaction[]
-  personalBudgets       PersonalBudget[]
-  personalSuggestions   PersonalSuggestion[]
-  messageReactions      MessageReaction[]
+  personalTransactions    PersonalTransaction[]
+  personalBudgets         PersonalBudget[]
+  personalSuggestions     PersonalSuggestion[]
+  messageReactions        MessageReaction[]
+  borrowEntriesAsLender   BorrowEntry[] @relation("BorrowLender")
+  borrowEntriesAsBorrower BorrowEntry[] @relation("BorrowBorrower")
+}
+
+model BorrowEntry {
+  id         String    @id @default(cuid())
+  lenderId   String
+  borrowerId String
+  amount     Int       // stored in paise/cents
+  currency   String    @default("INR")
+  note       String?
+  status     String    @default("PENDING")  // "PENDING" | "SETTLED"
+  createdAt  DateTime  @default(now())
+  settledAt  DateTime?
+
+  lender   User @relation("BorrowLender",   fields: [lenderId],   references: [id], onDelete: Cascade)
+  borrower User @relation("BorrowBorrower", fields: [borrowerId], references: [id], onDelete: Cascade)
+
+  @@index([lenderId])
+  @@index([borrowerId])
 }
 
 model PushDevice {
