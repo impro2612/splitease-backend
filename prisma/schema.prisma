@@ -47,6 +47,7 @@ model User {
   messageReactions        MessageReaction[]
   borrowEntriesAsLender   BorrowEntry[] @relation("BorrowLender")
   borrowEntriesAsBorrower BorrowEntry[] @relation("BorrowBorrower")
+  trips                   Trip[]
 }
 
 model BorrowEntry {
@@ -183,6 +184,7 @@ model Group {
   settlements Settlement[]
   invitations Invitation[]
   activities  Activity[]
+  trips       Trip[]
 }
 
 model Activity {
@@ -386,4 +388,37 @@ model PersonalSuggestion {
 
   @@unique([userId, analyzedMonth])
   @@index([userId, updatedAt])
+}
+
+model Trip {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  emoji       String   @default("✈️")
+  startDate   DateTime
+  endDate     DateTime
+  totalBudget Int      // stored in paise/cents
+  currency    String   @default("INR")
+  status      String   @default("PLANNING") // PLANNING | ACTIVE | COMPLETED
+  groupId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user       User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  group      Group?               @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  categories TripCategoryBudget[]
+
+  @@index([userId])
+}
+
+model TripCategoryBudget {
+  id       String @id @default(cuid())
+  tripId   String
+  category String
+  amount   Int    // planned amount in paise
+
+  trip Trip @relation(fields: [tripId], references: [id], onDelete: Cascade)
+
+  @@unique([tripId, category])
+  @@index([tripId])
 }
