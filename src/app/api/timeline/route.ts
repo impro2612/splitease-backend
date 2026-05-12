@@ -14,14 +14,15 @@ export async function GET(req: NextRequest) {
     },
     select: {
       id: true, name: true, emoji: true, location: true, lat: true, lng: true,
+      startDate: true, endDate: true,
       expenses: { select: { date: true }, orderBy: { date: "asc" } },
     },
   })
 
   const pins = groups.map((g) => {
     const dates = g.expenses.map((e) => e.date)
-    const startDate = dates[0] ?? null
-    const endDate = dates[dates.length - 1] ?? null
+    const startDate = g.startDate ?? dates[0] ?? null
+    const endDate = g.endDate ?? dates[dates.length - 1] ?? null
     return { id: g.id, name: g.name, emoji: g.emoji, location: g.location, lat: g.lat!, lng: g.lng!, startDate, endDate }
   })
 

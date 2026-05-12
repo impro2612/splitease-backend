@@ -177,6 +177,8 @@ model Group {
   location          String?
   lat               Float?
   lng               Float?
+  startDate         DateTime?
+  endDate           DateTime?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
   createdById       String

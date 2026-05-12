@@ -42,7 +42,7 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const { name, description, color, emoji, currency, location, lat: clientLat, lng: clientLng } = await req.json()
+    const { name, color, emoji, currency, location, lat: clientLat, lng: clientLng, startDate, endDate } = await req.json()
 
     if (!name?.trim()) return Response.json({ error: "Name is required" }, { status: 400 })
 
@@ -63,13 +63,14 @@ export async function POST(req: NextRequest) {
     const group = await prisma.group.create({
       data: {
         name: name.trim(),
-        description: description?.trim(),
         color: color ?? "#6366f1",
         emoji: emoji ?? "💰",
         currency: currency ?? "USD",
         location: location?.trim() ?? null,
         lat,
         lng,
+        startDate: startDate ? new Date(startDate) : null,
+        endDate: endDate ? new Date(endDate) : null,
         createdById: user.id,
         members: { create: { userId: user.id, role: "ADMIN" } },
       },
