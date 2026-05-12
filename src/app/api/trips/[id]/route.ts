@@ -114,6 +114,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   if (categories?.length) {
+    const effectiveBudget = totalBudget !== undefined ? Math.round(totalBudget * 100) : updated.totalBudget
+    const existingCats = await prisma.tripCategoryBudget.findMany({ where: { tripId: id } })
+    const catMap = new Map(existingCats.map((c) => [c.category, c.amount]))
+    for (const c of categories) {
+      catMap.set(c.category, Math.round(c.amount * 100))
+    }
+    const totalAllocated = Array.from(catMap.values()).reduce((s, a) => s + a, 0)
+    if (totalAllocated > effectiveBudget) {
+      return Response.json(
+        { error: `Category budgets (${totalAllocated / 100}) exceed total trip budget (${effectiveBudget / 100})` },
+        { status: 400 }
+      )
+    }
     for (const c of categories) {
       await prisma.tripCategoryBudget.upsert({
         where: { tripId_category: { tripId: id, category: c.category } },
