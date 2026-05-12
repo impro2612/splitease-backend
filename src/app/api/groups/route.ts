@@ -42,13 +42,14 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const { name, description, color, emoji, currency, location } = await req.json()
+    const { name, description, color, emoji, currency, location, lat: clientLat, lng: clientLng } = await req.json()
 
     if (!name?.trim()) return Response.json({ error: "Name is required" }, { status: 400 })
 
-    let lat: number | null = null
-    let lng: number | null = null
-    if (location?.trim()) {
+    let lat: number | null = clientLat ?? null
+    let lng: number | null = clientLng ?? null
+    // only geocode if mobile didn't already send coordinates
+    if (location?.trim() && lat === null) {
       try {
         const geo = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location.trim())}&format=json&limit=1`,
