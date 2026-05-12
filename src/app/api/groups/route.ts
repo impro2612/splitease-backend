@@ -42,9 +42,22 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const { name, description, color, emoji, currency } = await req.json()
+    const { name, description, color, emoji, currency, location } = await req.json()
 
     if (!name?.trim()) return Response.json({ error: "Name is required" }, { status: 400 })
+
+    let lat: number | null = null
+    let lng: number | null = null
+    if (location?.trim()) {
+      try {
+        const geo = await fetch(
+          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location.trim())}&format=json&limit=1`,
+          { headers: { "User-Agent": "SplitEase/1.0" } }
+        )
+        const geoData = await geo.json()
+        if (geoData[0]) { lat = parseFloat(geoData[0].lat); lng = parseFloat(geoData[0].lon) }
+      } catch { /* geocoding failure is non-fatal */ }
+    }
 
     const group = await prisma.group.create({
       data: {
@@ -53,6 +66,9 @@ export async function POST(req: NextRequest) {
         color: color ?? "#6366f1",
         emoji: emoji ?? "💰",
         currency: currency ?? "USD",
+        location: location?.trim() ?? null,
+        lat,
+        lng,
         createdById: user.id,
         members: { create: { userId: user.id, role: "ADMIN" } },
       },
