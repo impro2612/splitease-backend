@@ -2,7 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 
-function toApi(trip: any, actualSpent = 0, memberSpending: any[] = [], recentExpenses: any[] = []) {
+function toApi(trip: any, actualSpent = 0, memberSpending: any[] = [], recentExpenses: any[] = [], categoryActuals: Record<string, number> = {}) {
   return {
     ...trip,
     totalBudget: trip.totalBudget / 100,
@@ -10,6 +10,7 @@ function toApi(trip: any, actualSpent = 0, memberSpending: any[] = [], recentExp
     categories: (trip.categories ?? []).map((c: any) => ({ ...c, amount: c.amount / 100 })),
     memberSpending,
     recentExpenses,
+    categoryActuals,
   }
 }
 
@@ -52,10 +53,18 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .map((m) => ({ ...m, paid: m.paid / 100 }))
       .sort((a, b) => b.paid - a.paid)
 
-    // Aggregate actual spend per category
-    const categoryActual = new Map<string, number>()
+    // Aggregate actual spend per category; map "utilities" → "general"
+    const rawActual = new Map<string, number>()
     for (const e of expenses) {
-      categoryActual.set(e.category, (categoryActual.get(e.category) ?? 0) + e.amount)
+      const key = e.category === "utilities" ? "general" : e.category
+      rawActual.set(key, (rawActual.get(key) ?? 0) + e.amount)
+    }
+
+    // Convert to rupees — all 8 trip categories always present
+    const tripCategoryKeys = ["accommodation", "food", "transport", "entertainment", "shopping", "health", "travel", "general"]
+    const categoryActuals: Record<string, number> = {}
+    for (const key of tripCategoryKeys) {
+      categoryActuals[key] = (rawActual.get(key) ?? 0) / 100
     }
 
     recentExpenses = expenses.slice(0, 30).map((e) => ({
@@ -67,13 +76,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       paidBy: e.paidBy,
     }))
 
-    // Attach actual amounts to categories
-    trip.categories = trip.categories.map((c) => ({
-      ...c,
-      actualAmount: (categoryActual.get(c.category) ?? 0),
-    })) as any
-
     actualSpent = actualSpent / 100
+    return Response.json(toApi(trip, actualSpent, memberSpending, recentExpenses, categoryActuals))
   }
 
   return Response.json(toApi(trip, actualSpent, memberSpending, recentExpenses))
