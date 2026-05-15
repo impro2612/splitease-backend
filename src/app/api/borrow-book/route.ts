@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { Prisma } from "@/generated/prisma/client"
 
 type EntryWithPayments = Prisma.BorrowEntryGetPayload<{
   include: {
@@ -71,8 +71,8 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { friendId, amount, note, iAmLender, currency, date } = await req.json()
-  if (!friendId || !amount || amount <= 0) {
-    return Response.json({ error: "friendId and positive amount required" }, { status: 400 })
+  if (!friendId || typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0) {
+    return Response.json({ error: "friendId and positive finite amount required" }, { status: 400 })
   }
 
   const friendship = await prisma.friend.findFirst({

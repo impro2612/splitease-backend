@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { Prisma } from "@/generated/prisma/client"
 
 type TripWithDetails = Prisma.TripGetPayload<{
   include: {
@@ -119,13 +119,28 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!member) return Response.json({ error: "Not a member of this group" }, { status: 403 })
   }
 
+  if (totalBudget !== undefined && (typeof totalBudget !== "number" || !Number.isFinite(totalBudget) || totalBudget <= 0)) {
+    return Response.json({ error: "totalBudget must be a positive finite number" }, { status: 400 })
+  }
+  const patchedStart = startDate !== undefined ? new Date(startDate) : trip.startDate
+  const patchedEnd   = endDate   !== undefined ? new Date(endDate)   : trip.endDate
+  if (startDate !== undefined && isNaN(patchedStart.getTime())) {
+    return Response.json({ error: "Invalid startDate" }, { status: 400 })
+  }
+  if (endDate !== undefined && isNaN(patchedEnd.getTime())) {
+    return Response.json({ error: "Invalid endDate" }, { status: 400 })
+  }
+  if (patchedEnd < patchedStart) {
+    return Response.json({ error: "endDate must be on or after startDate" }, { status: 400 })
+  }
+
   const updated = await prisma.trip.update({
     where: { id },
     data: {
       ...(name !== undefined && { name }),
       ...(emoji !== undefined && { emoji }),
-      ...(startDate !== undefined && { startDate: new Date(startDate) }),
-      ...(endDate !== undefined && { endDate: new Date(endDate) }),
+      ...(startDate !== undefined && { startDate: patchedStart }),
+      ...(endDate !== undefined && { endDate: patchedEnd }),
       ...(totalBudget !== undefined && { totalBudget: Math.round(totalBudget * 100) }),
       ...(currency !== undefined && { currency }),
       ...(status !== undefined && { status }),

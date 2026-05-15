@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { Prisma } from "@/generated/prisma/client"
 
 type TripWithDetails = Prisma.TripGetPayload<{
   include: {
@@ -57,8 +57,26 @@ export async function POST(req: NextRequest) {
 
   const { name, emoji, startDate, endDate, totalBudget, currency, groupId, categories } = await req.json()
 
-  if (!name || !startDate || !endDate || !totalBudget || totalBudget <= 0) {
-    return Response.json({ error: "name, startDate, endDate and positive totalBudget required" }, { status: 400 })
+  if (!name || !startDate || !endDate || !totalBudget) {
+    return Response.json({ error: "name, startDate, endDate and totalBudget required" }, { status: 400 })
+  }
+  if (typeof totalBudget !== "number" || !Number.isFinite(totalBudget) || totalBudget <= 0) {
+    return Response.json({ error: "totalBudget must be a positive finite number" }, { status: 400 })
+  }
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+    return Response.json({ error: "Invalid date values" }, { status: 400 })
+  }
+  if (end < start) {
+    return Response.json({ error: "endDate must be on or after startDate" }, { status: 400 })
+  }
+  if (categories?.length) {
+    const catTotal = (categories as { category: string; amount: number }[])
+      .reduce((s, c) => s + (c.amount ?? 0), 0)
+    if (!Number.isFinite(catTotal) || catTotal > totalBudget) {
+      return Response.json({ error: "Category amounts must be finite and must not exceed totalBudget" }, { status: 400 })
+    }
   }
 
   if (groupId) {
@@ -73,8 +91,8 @@ export async function POST(req: NextRequest) {
       userId: user.id,
       name,
       emoji: emoji ?? "✈️",
-      startDate: new Date(startDate),
-      endDate: new Date(endDate),
+      startDate: start,
+      endDate: end,
       totalBudget: Math.round(totalBudget * 100),
       currency: currency ?? "INR",
       groupId: groupId ?? null,
