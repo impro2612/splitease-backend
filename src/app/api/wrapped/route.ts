@@ -80,7 +80,7 @@ export async function GET(req: NextRequest) {
   // Most generous (member who paid most times)
   const paidMap: Record<string, { name: string; count: number; total: number }> = {}
   yearGroups.forEach(g => g.expenses.forEach(e => {
-    if (!paidMap[e.paidById]) paidMap[e.paidById] = { name: e.paidBy.name, count: 0, total: 0 }
+    if (!paidMap[e.paidById]) paidMap[e.paidById] = { name: e.paidBy.name ?? "Unknown", count: 0, total: 0 }
     paidMap[e.paidById].count++
     paidMap[e.paidById].total += e.amount
   }))
