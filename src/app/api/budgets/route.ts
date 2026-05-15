@@ -40,5 +40,5 @@ export async function DELETE(req: NextRequest) {
 
   const { category } = await req.json()
   await prisma.personalBudget.deleteMany({ where: { userId: user.id, category } })
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

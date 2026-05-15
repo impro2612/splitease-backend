@@ -1,10 +1,14 @@
-// In-memory rate limiter — replace the Map with Redis in a multi-instance production setup.
-// For single-instance Vercel deployments this is sufficient; the Map resets on cold starts.
+// Rate limiter with two backends:
+//   1. Upstash Redis  — production-grade, survives cold starts. Activated when
+//      UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are set (add via Vercel
+//      Marketplace → Upstash, or set manually in the dashboard).
+//   2. In-memory Map  — zero-config fallback for local dev and single-instance deploys.
+//      Resets on cold starts; adequate when traffic is low.
 
 type Window = { timestamps: number[]; windowMs: number; max: number }
 const store = new Map<string, Window>()
 
-export function checkRateLimit(key: string, max: number, windowMs: number): boolean {
+function inMemoryRateLimit(key: string, max: number, windowMs: number): boolean {
   const now = Date.now()
   const entry = store.get(key)
   if (!entry) {
@@ -15,4 +19,34 @@ export function checkRateLimit(key: string, max: number, windowMs: number): bool
   if (entry.timestamps.length >= max) return false
   entry.timestamps.push(now)
   return true
+}
+
+async function upstashRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
+  const url   = process.env.UPSTASH_REDIS_REST_URL!
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN!
+  const windowSec = Math.ceil(windowMs / 1000)
+  const redisKey  = `rl:${key}`
+
+  // MULTI: INCR + EXPIRE in a single pipeline
+  const res = await fetch(`${url}/pipeline`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify([
+      ["INCR", redisKey],
+      ["EXPIRE", redisKey, windowSec, "NX"],
+    ]),
+  })
+  if (!res.ok) return true // fail open — never block on infra errors
+  const [[, count]] = await res.json() as [[string, number]]
+  return count <= max
+}
+
+const useUpstash =
+  typeof process !== "undefined" &&
+  !!process.env.UPSTASH_REDIS_REST_URL &&
+  !!process.env.UPSTASH_REDIS_REST_TOKEN
+
+export async function checkRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
+  if (useUpstash) return upstashRateLimit(key, max, windowMs)
+  return inMemoryRateLimit(key, max, windowMs)
 }

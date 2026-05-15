@@ -23,7 +23,7 @@ export async function POST(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   // 30 expenses per minute per user
-  if (!checkRateLimit(`expenses:${user.id}`, 30, 60 * 1000)) {
+  if (!await checkRateLimit(`expenses:${user.id}`, 30, 60 * 1000)) {
     return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })
   }
 

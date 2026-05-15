@@ -49,5 +49,5 @@ export async function POST(req: NextRequest) {
   // Notify the blocked user so their friends list refreshes in real-time
   await pusherServer.trigger(`private-user-${blockedId}`, "friend-update", { action: "removed" }).catch(() => {})
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true }, { status: 200 })
 }

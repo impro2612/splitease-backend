@@ -5,7 +5,7 @@ import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
   const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  if (!checkRateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)) {
+  if (!await checkRateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)) {
     return Response.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 })
   }
 
@@ -33,5 +33,5 @@ export async function POST(req: NextRequest) {
 
   await sendPasswordResetEmail(user.email, otp)
 
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

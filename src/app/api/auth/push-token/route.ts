@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true }, { status: 200 })
 }
 
 // DELETE /api/auth/push-token  — clears the current device push token
@@ -37,5 +37,5 @@ export async function DELETE(req: NextRequest) {
     },
   })
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true }, { status: 200 })
 }

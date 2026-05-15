@@ -128,7 +128,7 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   // 5 PDF imports per hour per user (each one calls the external PDF parser + AI)
-  if (!checkRateLimit(`import-pdf:${user.id}`, 5, 60 * 60 * 1000)) {
+  if (!await checkRateLimit(`import-pdf:${user.id}`, 5, 60 * 60 * 1000)) {
     return Response.json({ error: "Too many PDF imports. Please wait before importing again." }, { status: 429 })
   }
 

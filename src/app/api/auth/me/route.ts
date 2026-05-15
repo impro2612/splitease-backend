@@ -50,7 +50,7 @@ export async function DELETE(req: NextRequest) {
       await tx.user.delete({ where: { id: user.id } })
     })
 
-    return Response.json({ success: true })
+    return Response.json({ success: true }, { status: 200 })
   } catch (err) {
     console.error(err)
     return Response.json({ error: "Failed to delete account" }, { status: 500 })

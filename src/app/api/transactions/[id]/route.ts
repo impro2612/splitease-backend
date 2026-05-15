@@ -42,5 +42,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
   }
 
   await prisma.personalTransaction.delete({ where: { id } })
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

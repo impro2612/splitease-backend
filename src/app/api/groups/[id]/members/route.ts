@@ -206,5 +206,5 @@ export async function DELETE(
     [user.id]
   )
 
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

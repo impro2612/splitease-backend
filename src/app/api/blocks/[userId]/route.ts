@@ -16,5 +16,5 @@ export async function DELETE(
     where: { blockerId: user.id, blockedId: userId },
   })
 
-  return Response.json({ ok: true })
+  return Response.json({ ok: true }, { status: 200 })
 }

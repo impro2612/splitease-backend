@@ -28,5 +28,5 @@ export async function POST(req: NextRequest) {
     prisma.passwordReset.update({ where: { id: reset.id }, data: { used: true } }),
   ])
 
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

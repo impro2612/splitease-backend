@@ -193,5 +193,5 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!trip) return Response.json({ error: "Not found" }, { status: 404 })
 
   await prisma.trip.delete({ where: { id } })
-  return Response.json({ ok: true })
+  return Response.json({ ok: true }, { status: 200 })
 }

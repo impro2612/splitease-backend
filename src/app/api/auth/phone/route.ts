@@ -27,5 +27,5 @@ export async function POST(req: NextRequest) {
     data: { phone: phone.trim(), phoneNormalized: normalized },
   })
 
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

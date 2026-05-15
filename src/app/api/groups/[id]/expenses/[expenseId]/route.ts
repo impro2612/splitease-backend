@@ -269,5 +269,5 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       groupEmoji: groupInfo?.emoji,
     },
   })
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

@@ -70,5 +70,5 @@ export async function DELETE(
   }
 
   await prisma.borrowEntry.delete({ where: { id } })
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }

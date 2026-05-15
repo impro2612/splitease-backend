@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   // 10 CSV imports per hour per user
-  if (!checkRateLimit(`import-csv:${user.id}`, 10, 60 * 60 * 1000)) {
+  if (!await checkRateLimit(`import-csv:${user.id}`, 10, 60 * 60 * 1000)) {
     return Response.json({ error: "Too many imports. Please wait before importing again." }, { status: 429 })
   }
 

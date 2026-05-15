@@ -31,14 +31,14 @@ async function issueTokenPair(userId: string, email: string, name: string | null
 // by the time the user submits credentials.
 export async function GET() {
   await prisma.$queryRaw`SELECT 1`
-  return Response.json({ ok: true })
+  return Response.json({ ok: true }, { status: 200 })
 }
 
 export async function POST(req: NextRequest) {
   try {
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
     // 10 attempts per 15 minutes per IP — brute-force protection
-    if (!checkRateLimit(`signin:${ip}`, 10, 15 * 60 * 1000)) {
+    if (!await checkRateLimit(`signin:${ip}`, 10, 15 * 60 * 1000)) {
       return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
     }
 

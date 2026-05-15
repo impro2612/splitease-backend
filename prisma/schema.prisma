@@ -183,7 +183,7 @@ model Group {
   updatedAt         DateTime @updatedAt
   createdById       String
 
-  createdBy   User          @relation(fields: [createdById], references: [id])
+  createdBy   User          @relation(fields: [createdById], references: [id], onDelete: Restrict)
   members     GroupMember[]
   expenses    Expense[]
   settlements Settlement[]
@@ -238,8 +238,8 @@ model Expense {
   category    String   @default("general")
 
   group     Group             @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  paidBy    User              @relation("PaidBy", fields: [paidById], references: [id])
-  createdBy User              @relation("CreatedBy", fields: [createdById], references: [id])
+  paidBy    User              @relation("PaidBy", fields: [paidById], references: [id], onDelete: Cascade)
+  createdBy User              @relation("CreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
   splits    ExpenseSplit[]
   reactions ExpenseReaction[]
 }

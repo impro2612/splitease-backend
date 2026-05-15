@@ -53,7 +53,7 @@ export async function PATCH(
     await pusherServer.trigger(`private-user-${friend.requesterId}`, "friend-update", { action: "rejected" }).catch(() => {})
   }
 
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }
 
 // DELETE /api/friends/[id] — remove a friendship
@@ -80,5 +80,5 @@ export async function DELETE(
   const otherId = friend.requesterId === user.id ? friend.addresseeId : friend.requesterId
   await pusherServer.trigger(`private-user-${otherId}`, "friend-update", { action: "removed" }).catch(() => {})
 
-  return Response.json({ success: true })
+  return Response.json({ success: true }, { status: 200 })
 }
