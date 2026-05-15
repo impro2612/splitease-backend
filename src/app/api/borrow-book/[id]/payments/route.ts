@@ -43,9 +43,10 @@ export async function POST(
     },
   })
 
-  // Auto-settle if fully paid
+  // Auto-settle only when the lender records/confirms the final payment.
+  // Borrowers can add payments, but lender confirmation is required to settle.
   const newTotal = paidSoFar + payAmount
-  if (newTotal >= entry.amount) {
+  if (newTotal >= entry.amount && entry.lenderId === user.id) {
     await prisma.borrowEntry.update({
       where: { id },
       data: { status: "SETTLED", settledAt: new Date() },

@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { Prisma } from "@prisma/client"
+import { Prisma } from "@/generated/prisma/client"
 
 type EntryWithUsers = Prisma.BorrowEntryGetPayload<{
   include: {
@@ -31,6 +31,9 @@ export async function PATCH(
     },
   })
   if (!entry) return Response.json({ error: "Entry not found" }, { status: 404 })
+  if (entry.lenderId !== user.id) {
+    return Response.json({ error: "Only the lender can mark this entry as settled" }, { status: 403 })
+  }
   if (entry.status === "SETTLED") return Response.json({ error: "Already settled" }, { status: 400 })
 
   const updated = await prisma.borrowEntry.update({
@@ -62,6 +65,9 @@ export async function DELETE(
     },
   })
   if (!entry) return Response.json({ error: "Entry not found" }, { status: 404 })
+  if (entry.lenderId !== user.id) {
+    return Response.json({ error: "Only the lender can delete this entry" }, { status: 403 })
+  }
 
   await prisma.borrowEntry.delete({ where: { id } })
   return Response.json({ success: true })
