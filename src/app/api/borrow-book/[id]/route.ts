@@ -1,8 +1,16 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
-function toApi(e: any) {
+type EntryWithUsers = Prisma.BorrowEntryGetPayload<{
+  include: {
+    lender: { select: { id: true; name: true; email: true; image: true } }
+    borrower: { select: { id: true; name: true; email: true; image: true } }
+  }
+}>
+
+function toApi(e: EntryWithUsers) {
   return { ...e, amount: e.amount / 100 }
 }
 

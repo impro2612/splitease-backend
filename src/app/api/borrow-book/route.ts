@@ -1,15 +1,26 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
-function toApi(e: any) {
-  const paidAmount = (e.payments ?? []).reduce((s: number, p: any) => s + p.amount, 0)
+type EntryWithPayments = Prisma.BorrowEntryGetPayload<{
+  include: {
+    lender: { select: { id: true; name: true; email: true; image: true } }
+    borrower: { select: { id: true; name: true; email: true; image: true } }
+    payments: true
+  }
+}>
+
+type FriendUser = EntryWithPayments["lender"]
+
+function toApi(e: EntryWithPayments) {
+  const paidAmount = e.payments.reduce((s, p) => s + p.amount, 0)
   return {
     ...e,
     amount: e.amount / 100,                       // original full amount
     paidAmount: paidAmount / 100,                  // total paid back so far
     remainingAmount: (e.amount - paidAmount) / 100, // still outstanding
-    payments: (e.payments ?? []).map((p: any) => ({ ...p, amount: p.amount / 100 })),
+    payments: e.payments.map((p) => ({ ...p, amount: p.amount / 100 })),
   }
 }
 
@@ -29,7 +40,7 @@ export async function GET(req: NextRequest) {
   })
 
   // Build per-friend summary using remaining (not original) amounts
-  const friendMap = new Map<string, { friend: any; net: number; pendingCount: number }>()
+  const friendMap = new Map<string, { friend: FriendUser; net: number; pendingCount: number }>()
   for (const e of entries) {
     const friendUser = e.lenderId === user.id ? e.borrower : e.lender
     const isMine = e.lenderId === user.id

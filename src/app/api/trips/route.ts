@@ -1,13 +1,21 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
-function toApi(trip: any, actualSpent = 0) {
+type TripWithDetails = Prisma.TripGetPayload<{
+  include: {
+    categories: true
+    group: { select: { id: true; name: true; emoji: true; color: true } }
+  }
+}>
+
+function toApi(trip: TripWithDetails, actualSpent = 0) {
   return {
     ...trip,
     totalBudget: trip.totalBudget / 100,
     actualSpent,
-    categories: (trip.categories ?? []).map((c: any) => ({ ...c, amount: c.amount / 100 })),
+    categories: trip.categories.map((c) => ({ ...c, amount: c.amount / 100 })),
   }
 }
 
@@ -66,7 +74,7 @@ export async function POST(req: NextRequest) {
       updatedAt: new Date(),
       ...(categories?.length && {
         categories: {
-          create: categories.map((c: any) => ({
+          create: categories.map((c: { category: string; amount: number }) => ({
             category: c.category,
             amount: Math.round(c.amount * 100),
           })),

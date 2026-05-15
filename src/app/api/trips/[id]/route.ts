@@ -1,13 +1,31 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@prisma/client"
 
-function toApi(trip: any, actualSpent = 0, memberSpending: any[] = [], recentExpenses: any[] = [], categoryActuals: Record<string, number> = {}) {
+type TripWithDetails = Prisma.TripGetPayload<{
+  include: {
+    categories: true
+    group: { select: { id: true; name: true; emoji: true; color: true } }
+  }
+}>
+
+type UserInfo = { id: string; name: string | null; email: string; image: string | null }
+type MemberSpend = { user: UserInfo; paid: number }
+type RecentExpense = { id: string; description: string; amount: number; category: string; date: Date; paidBy: UserInfo }
+
+function toApi(
+  trip: TripWithDetails,
+  actualSpent = 0,
+  memberSpending: MemberSpend[] = [],
+  recentExpenses: RecentExpense[] = [],
+  categoryActuals: Record<string, number> = {}
+) {
   return {
     ...trip,
     totalBudget: trip.totalBudget / 100,
     actualSpent,
-    categories: (trip.categories ?? []).map((c: any) => ({ ...c, amount: c.amount / 100 })),
+    categories: trip.categories.map((c) => ({ ...c, amount: c.amount / 100 })),
     memberSpending,
     recentExpenses,
     categoryActuals,
@@ -30,8 +48,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   if (!trip) return Response.json({ error: "Not found" }, { status: 404 })
 
   let actualSpent = 0
-  let memberSpending: any[] = []
-  let recentExpenses: any[] = []
+  let memberSpending: MemberSpend[] = []
+  let recentExpenses: RecentExpense[] = []
 
   if (trip.groupId) {
     const expenses = await prisma.expense.findMany({
@@ -43,7 +61,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     actualSpent = expenses.reduce((s, e) => s + e.amount, 0)
 
     // Aggregate spending per member
-    const memberMap = new Map<string, { user: any; paid: number }>()
+    const memberMap = new Map<string, { user: UserInfo; paid: number }>()
     for (const e of expenses) {
       const existing = memberMap.get(e.paidById)
       if (existing) existing.paid += e.amount
