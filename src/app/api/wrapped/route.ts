@@ -107,6 +107,20 @@ export async function GET(req: NextRequest) {
     })
   })
 
+  // Top friends by number of shared groups
+  const friendGroupCount: Record<string, { name: string; count: number }> = {}
+  yearGroups.forEach(g => {
+    g.members.forEach(m => {
+      if (m.user.id === user.id) return
+      if (!friendGroupCount[m.user.id])
+        friendGroupCount[m.user.id] = { name: m.user.name ?? "Unknown", count: 0 }
+      friendGroupCount[m.user.id].count++
+    })
+  })
+  const topFriends = Object.values(friendGroupCount)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5)
+
   return Response.json({
     year: targetYear,
     availableYears,
@@ -119,5 +133,6 @@ export async function GET(req: NextRequest) {
     mostGenerous,
     owedToUser,               // cents
     userOwes,                 // cents
+    topFriends,
   })
 }
