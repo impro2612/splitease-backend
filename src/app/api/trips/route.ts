@@ -61,6 +61,13 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "name, startDate, endDate and positive totalBudget required" }, { status: 400 })
   }
 
+  if (groupId) {
+    const member = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: user.id } },
+    })
+    if (!member) return Response.json({ error: "Not a member of this group" }, { status: 403 })
+  }
+
   const trip = await prisma.trip.create({
     data: {
       userId: user.id,

@@ -112,6 +112,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const { name, emoji, startDate, endDate, totalBudget, currency, status, groupId, categories } = await req.json()
 
+  if (groupId) {
+    const member = await prisma.groupMember.findUnique({
+      where: { groupId_userId: { groupId, userId: user.id } },
+    })
+    if (!member) return Response.json({ error: "Not a member of this group" }, { status: 403 })
+  }
+
   const updated = await prisma.trip.update({
     where: { id },
     data: {
