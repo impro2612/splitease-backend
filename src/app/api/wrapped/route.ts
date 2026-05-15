@@ -29,8 +29,11 @@ export async function GET(req: NextRequest) {
     },
   })
 
-  // Derive available years from all expense dates
-  const allYears = groups.flatMap(g => g.expenses.map(e => new Date(e.date).getFullYear()))
+  // Derive available years from expense dates AND group startDates
+  const allYears = [
+    ...groups.flatMap(g => g.expenses.map(e => new Date(e.date).getFullYear())),
+    ...groups.filter(g => g.startDate).map(g => new Date(g.startDate!).getFullYear()),
+  ]
   const availableYears = [...new Set(allYears)].sort((a, b) => b - a)
   const targetYear = yearParam ? parseInt(yearParam) : (availableYears[0] ?? new Date().getFullYear())
 
