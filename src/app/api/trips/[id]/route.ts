@@ -58,11 +58,15 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       orderBy: { date: "desc" },
     })
 
-    actualSpent = expenses.reduce((s, e) => s + e.amount, 0)
+    // Only sum expenses that match the trip's currency to avoid cross-currency nonsense
+    const tripCurrencyExpenses = expenses.filter(
+      (e) => ((e as { currency?: string }).currency ?? trip.currency) === trip.currency
+    )
+    actualSpent = tripCurrencyExpenses.reduce((s, e) => s + e.amount, 0)
 
-    // Aggregate spending per member
+    // Aggregate spending per member (same currency only)
     const memberMap = new Map<string, { user: UserInfo; paid: number }>()
-    for (const e of expenses) {
+    for (const e of tripCurrencyExpenses) {
       const existing = memberMap.get(e.paidById)
       if (existing) existing.paid += e.amount
       else memberMap.set(e.paidById, { user: e.paidBy, paid: e.amount })
@@ -71,21 +75,21 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       .map((m) => ({ ...m, paid: m.paid / 100 }))
       .sort((a, b) => b.paid - a.paid)
 
-    // Aggregate actual spend per category; map "utilities" → "general"
+    // Aggregate actual spend per category (same currency); map "utilities" → "general"
     const rawActual = new Map<string, number>()
-    for (const e of expenses) {
+    for (const e of tripCurrencyExpenses) {
       const key = e.category === "utilities" ? "general" : e.category
       rawActual.set(key, (rawActual.get(key) ?? 0) + e.amount)
     }
 
-    // Convert to rupees — all 8 trip categories always present
+    // Convert to display units — all 8 trip categories always present
     const tripCategoryKeys = ["accommodation", "food", "transport", "entertainment", "shopping", "health", "travel", "general"]
     const categoryActuals: Record<string, number> = {}
     for (const key of tripCategoryKeys) {
       categoryActuals[key] = (rawActual.get(key) ?? 0) / 100
     }
 
-    recentExpenses = expenses.slice(0, 30).map((e) => ({
+    recentExpenses = tripCurrencyExpenses.slice(0, 30).map((e) => ({
       id: e.id,
       description: e.description,
       amount: e.amount / 100,

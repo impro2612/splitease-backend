@@ -4,6 +4,7 @@ import * as jose from "jose"
 import * as crypto from "crypto"
 import { prisma } from "@/lib/prisma"
 import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 function hashToken(raw: string): string {
   return crypto.createHash("sha256").update(raw).digest("hex")
@@ -35,6 +36,12 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
+    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+    // 10 attempts per 15 minutes per IP — brute-force protection
+    if (!checkRateLimit(`signin:${ip}`, 10, 15 * 60 * 1000)) {
+      return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
+    }
+
     const { email, password } = await req.json()
 
     if (!email || !password) {

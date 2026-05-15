@@ -1,8 +1,14 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { sendPasswordResetEmail } from "@/lib/mailer"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  if (!checkRateLimit(`forgot-password:${ip}`, 5, 15 * 60 * 1000)) {
+    return Response.json({ error: "Too many requests. Please wait before trying again." }, { status: 429 })
+  }
+
   const { email } = await req.json()
   if (!email) return Response.json({ error: "Email is required" }, { status: 400 })
 

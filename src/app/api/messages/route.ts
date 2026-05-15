@@ -3,11 +3,17 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 // POST /api/messages — send a message
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  // 60 messages per minute per user
+  if (!checkRateLimit(`messages:${user.id}`, 60, 60 * 1000)) {
+    return Response.json({ error: "Too many messages. Please slow down." }, { status: 429 })
+  }
 
   const { receiverId, content, clientId } = await req.json()
 

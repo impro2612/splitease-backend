@@ -57,11 +57,16 @@ export async function POST(req: NextRequest) {
         },
       })
     } else if (!user.googleId) {
-      // Link Google account to existing email/password user
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: { googleId, image: user.image ?? image ?? null },
-      })
+      // An account with this email already exists but was created with a password.
+      // Silently linking here would allow account takeover via Google without password proof.
+      // Users must link Google from their authenticated profile settings instead.
+      return Response.json(
+        {
+          error:
+            "An account with this email already exists. Sign in with your password, then link Google from profile settings.",
+        },
+        { status: 409 }
+      )
     }
 
     const { accessToken, refreshToken } = await issueTokenPair(user.id, user.email, user.name)

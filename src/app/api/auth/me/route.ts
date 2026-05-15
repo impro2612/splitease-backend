@@ -84,6 +84,9 @@ export async function PATCH(req: NextRequest) {
 
     if (email !== undefined) {
       if (!email?.trim()) return Response.json({ error: "Email cannot be empty" }, { status: 400 })
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        return Response.json({ error: "Invalid email format" }, { status: 400 })
+      }
       const existing = await prisma.user.findUnique({ where: { email: email.trim().toLowerCase() } })
       if (existing && existing.id !== user.id) {
         return Response.json({ error: "Email already in use by another account" }, { status: 409 })
@@ -102,6 +105,8 @@ export async function PATCH(req: NextRequest) {
       if (!valid) return Response.json({ error: "Current password is incorrect" }, { status: 401 })
 
       updateData.password = await bcrypt.hash(newPassword, 10)
+      // Revoke all mobile sessions so stolen tokens can't be reused after a password change
+      await prisma.mobileRefreshToken.deleteMany({ where: { userId: user.id } })
     }
 
     if (image !== undefined) {

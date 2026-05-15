@@ -55,6 +55,11 @@ export async function POST(
     ])
 
     const memberIdSet = new Set(groupMembers.map((m) => m.userId))
+
+    if (!memberIdSet.has(paidById)) {
+      return Response.json({ error: "Payer must be a member of this group" }, { status: 400 })
+    }
+
     const expenseCurrency = currency ?? groupData?.currency ?? "USD"
 
     // 0-decimal currencies have no sub-units (JPY, KRW, VND, IDR, HUF, CLP, COP)
