@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 /** Convert a DB expense (amounts in cents) to the API shape (amounts in dollars). */
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
@@ -20,6 +21,11 @@ export async function POST(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  // 30 expenses per minute per user
+  if (!checkRateLimit(`expenses:${user.id}`, 30, 60 * 1000)) {
+    return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })
+  }
 
   const { id: groupId } = await params
 

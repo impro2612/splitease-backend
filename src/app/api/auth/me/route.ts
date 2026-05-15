@@ -96,7 +96,8 @@ export async function PATCH(req: NextRequest) {
 
     if (newPassword !== undefined) {
       if (!currentPassword) return Response.json({ error: "Current password is required" }, { status: 400 })
-      if (newPassword.length < 6) return Response.json({ error: "New password must be at least 6 characters" }, { status: 400 })
+      if (newPassword.length < 8) return Response.json({ error: "New password must be at least 8 characters" }, { status: 400 })
+      if (!/\d/.test(newPassword)) return Response.json({ error: "New password must contain at least one number" }, { status: 400 })
 
       const dbUser = await prisma.user.findUnique({ where: { id: user.id }, select: { password: true } })
       if (!dbUser?.password) return Response.json({ error: "Cannot change password for this account" }, { status: 400 })

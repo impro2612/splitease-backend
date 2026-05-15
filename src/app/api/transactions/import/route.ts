@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { parseCSV } from "@/lib/csv-parser"
+import { checkRateLimit } from "@/lib/rate-limit"
 import {
   type AIRefineInput,
   batchRefineTransactionsWithAI,
@@ -15,6 +16,11 @@ import {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  // 10 CSV imports per hour per user
+  if (!checkRateLimit(`import-csv:${user.id}`, 10, 60 * 60 * 1000)) {
+    return Response.json({ error: "Too many imports. Please wait before importing again." }, { status: 429 })
+  }
 
   try {
     const formData = await req.formData()

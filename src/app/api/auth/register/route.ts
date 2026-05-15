@@ -14,6 +14,12 @@ export async function POST(req: NextRequest) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return Response.json({ error: "Invalid email format" }, { status: 400 })
     }
+    if (password.length < 8) {
+      return Response.json({ error: "Password must be at least 8 characters" }, { status: 400 })
+    }
+    if (!/\d/.test(password)) {
+      return Response.json({ error: "Password must contain at least one number" }, { status: 400 })
+    }
 
     const existing = await prisma.user.findUnique({ where: { email } })
     if (existing) {

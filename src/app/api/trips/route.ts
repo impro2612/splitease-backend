@@ -39,9 +39,11 @@ export async function GET(req: NextRequest) {
       if (trip.groupId) {
         const expenses = await prisma.expense.findMany({
           where: { groupId: trip.groupId, date: { gte: trip.startDate, lte: trip.endDate } },
-          select: { amount: true },
+          select: { amount: true, currency: true },
         })
-        actualSpent = expenses.reduce((s, e) => s + e.amount, 0) / 100
+        actualSpent = expenses
+          .filter((e) => (e.currency ?? trip.currency) === trip.currency)
+          .reduce((s, e) => s + e.amount, 0) / 100
       }
       return toApi(trip, actualSpent)
     })
