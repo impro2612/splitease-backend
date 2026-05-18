@@ -158,6 +158,14 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   })
 
   if (categories?.length) {
+    for (const c of categories) {
+      if (!c.category || typeof c.category !== "string" || !c.category.trim()) {
+        return Response.json({ error: "Each category must have a non-empty name" }, { status: 400 })
+      }
+      if (typeof c.amount !== "number" || !Number.isFinite(c.amount) || c.amount < 0) {
+        return Response.json({ error: `Category "${c.category}" has an invalid amount` }, { status: 400 })
+      }
+    }
     const effectiveBudget = totalBudget !== undefined ? Math.round(totalBudget * 100) : updated.totalBudget
     const existingCats = await prisma.tripCategoryBudget.findMany({ where: { tripId: id } })
     const catMap = new Map(existingCats.map((c) => [c.category, c.amount]))

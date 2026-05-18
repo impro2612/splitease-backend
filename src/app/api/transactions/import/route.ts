@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
     if (!file) return Response.json({ error: "No file provided" }, { status: 400 })
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const { transactions, bank, skipped } = parseCSV(buffer)
+    const { transactions, bank, skipped } = await parseCSV(buffer)
 
     if (transactions.length === 0) {
       return Response.json({ error: "No transactions found in file", skipped }, { status: 400 })
