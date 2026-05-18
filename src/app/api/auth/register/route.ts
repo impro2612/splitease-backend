@@ -3,8 +3,14 @@ import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
 import { Prisma } from "@/generated/prisma/client"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function POST(req: NextRequest) {
+  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+  if (!await checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000)) {
+    return Response.json({ error: "Too many registrations from this IP. Please try again later." }, { status: 429 })
+  }
+
   try {
     const { name, email, phone, password } = await req.json()
 

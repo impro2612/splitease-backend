@@ -19,11 +19,28 @@ export async function GET(req: NextRequest) {
   // Accumulate raw owe/owed per currency — client will convert using its own cached rates
   const perCurrency: Record<string, { owe: number; owed: number }> = {}
 
+  const groupIds = groups.map((g) => g.id)
+  const [allExpenses, allSettlements] = await Promise.all([
+    prisma.expense.findMany({ where: { groupId: { in: groupIds } }, include: { splits: true } }),
+    prisma.settlement.findMany({ where: { groupId: { in: groupIds } } }),
+  ])
+
+  const expensesByGroup = new Map<string, typeof allExpenses>()
+  for (const e of allExpenses) {
+    const list = expensesByGroup.get(e.groupId) ?? []
+    list.push(e)
+    expensesByGroup.set(e.groupId, list)
+  }
+  const settlementsByGroup = new Map<string, typeof allSettlements>()
+  for (const s of allSettlements) {
+    const list = settlementsByGroup.get(s.groupId) ?? []
+    list.push(s)
+    settlementsByGroup.set(s.groupId, list)
+  }
+
   for (const group of groups) {
-    const [expenses, settlements] = await Promise.all([
-      prisma.expense.findMany({ where: { groupId: group.id }, include: { splits: true } }),
-      prisma.settlement.findMany({ where: { groupId: group.id } }),
-    ])
+    const expenses = expensesByGroup.get(group.id) ?? []
+    const settlements = settlementsByGroup.get(group.id) ?? []
 
     const expensesByCurrency: Record<string, typeof expenses> = {}
     for (const exp of expenses) {

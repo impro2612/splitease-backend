@@ -8,8 +8,10 @@ export async function POST(req: NextRequest) {
   if (!email || !token || !newPassword)
     return Response.json({ error: "All fields are required" }, { status: 400 })
 
-  if (newPassword.length < 6)
-    return Response.json({ error: "Password must be at least 6 characters" }, { status: 400 })
+  if (newPassword.length < 8)
+    return Response.json({ error: "Password must be at least 8 characters" }, { status: 400 })
+  if (!/\d/.test(newPassword))
+    return Response.json({ error: "Password must contain at least one number" }, { status: 400 })
 
   const reset = await prisma.passwordReset.findFirst({
     where: { email: email.toLowerCase().trim(), token, used: false },

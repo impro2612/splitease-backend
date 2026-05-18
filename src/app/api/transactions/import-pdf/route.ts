@@ -227,7 +227,10 @@ export async function POST(req: NextRequest) {
 
     return fetch(`${parserUrl}/parse-pdf`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(process.env.PDF_PARSER_SECRET ? { "X-Internal-Secret": process.env.PDF_PARSER_SECRET } : {}),
+      },
       body: jsonBody,
     })
   }

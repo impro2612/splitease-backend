@@ -1,8 +1,11 @@
 import { NextRequest } from "next/server"
 import * as jose from "jose"
 import * as crypto from "crypto"
+import { OAuth2Client } from "google-auth-library"
 import { prisma } from "@/lib/prisma"
 import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
 async function issueTokenPair(userId: string, email: string, name: string | null) {
   const accessToken = await new jose.SignJWT({ id: userId, email, name })
@@ -24,15 +27,22 @@ export async function POST(req: NextRequest) {
     const { idToken, mode } = await req.json()
     if (!idToken) return Response.json({ error: "idToken required" }, { status: 400 })
 
-    // Verify the ID token with Google's public tokeninfo endpoint
-    const googleRes = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${idToken}`)
-    const payload = await googleRes.json()
-
-    if (!googleRes.ok || payload.error || !payload.email || !payload.sub) {
+    // Verify the ID token using google-auth-library (production-safe, uses Google's public certs)
+    let googleId: string, email: string, name: string | undefined, image: string | undefined
+    try {
+      const ticket = await googleClient.verifyIdToken({
+        idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      })
+      const p = ticket.getPayload()
+      if (!p?.sub || !p.email) throw new Error("Missing sub/email in token payload")
+      googleId = p.sub
+      email = p.email
+      name = p.name
+      image = p.picture
+    } catch {
       return Response.json({ error: "Invalid Google token" }, { status: 401 })
     }
-
-    const { sub: googleId, email, name, picture: image } = payload
 
     // Find by googleId first, then fall back to matching email
     let user = await prisma.user.findFirst({

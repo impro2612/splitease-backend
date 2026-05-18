@@ -13,10 +13,11 @@ export async function GET(req: NextRequest) {
     where: { members: { some: { userId: user.id } } },
     select: {
       id: true, name: true, emoji: true, location: true, startDate: true, endDate: true,
+      currency: true,
       members: { select: { user: { select: { id: true, name: true } } } },
       expenses: {
         select: {
-          id: true, amount: true, category: true, date: true,
+          id: true, amount: true, category: true, date: true, currency: true,
           paidById: true,
           paidBy: { select: { id: true, name: true } },
           splits: { select: { userId: true, amount: true, paid: true } },
@@ -24,7 +25,7 @@ export async function GET(req: NextRequest) {
         orderBy: { date: "asc" },
       },
       settlements: {
-        select: { fromUserId: true, toUserId: true, amount: true },
+        select: { fromUserId: true, toUserId: true, amount: true, currency: true },
       },
     },
   })
@@ -38,7 +39,15 @@ export async function GET(req: NextRequest) {
   const targetYear = yearParam ? parseInt(yearParam) : (availableYears[0] ?? new Date().getFullYear())
 
   const yearGroups = groups
-    .map(g => ({ ...g, expenses: g.expenses.filter(e => new Date(e.date).getFullYear() === targetYear) }))
+    .map(g => ({
+      ...g,
+      // Only keep expenses for the target year that match this group's currency
+      expenses: g.expenses.filter(
+        e => new Date(e.date).getFullYear() === targetYear && (e.currency ?? g.currency) === g.currency
+      ),
+      // Only keep settlements for this group's currency
+      settlements: g.settlements.filter(s => (s.currency ?? g.currency) === g.currency),
+    }))
     .filter(g => g.expenses.length > 0)
 
   if (yearGroups.length === 0) {

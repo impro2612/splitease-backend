@@ -221,6 +221,7 @@ model GroupMember {
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([groupId, userId])
+  @@index([userId])
 }
 
 model Expense {
@@ -270,6 +271,10 @@ model Settlement {
   group    Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   fromUser User  @relation("FromUser", fields: [fromUserId], references: [id])
   toUser   User  @relation("ToUser", fields: [toUserId], references: [id])
+
+  @@index([fromUserId])
+  @@index([toUserId])
+  @@index([groupId])
 }
 
 model Friend {
@@ -283,6 +288,8 @@ model Friend {
   addressee User @relation("FriendAddressee", fields: [addresseeId], references: [id])
 
   @@unique([requesterId, addresseeId])
+  @@index([addresseeId])
+  @@index([status])
 }
 
 model Message {

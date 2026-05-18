@@ -33,21 +33,36 @@ export async function GET(req: NextRequest) {
     orderBy: { startDate: "asc" },
   })
 
-  const result = await Promise.all(
-    trips.map(async (trip) => {
-      let actualSpent = 0
-      if (trip.groupId) {
-        const expenses = await prisma.expense.findMany({
-          where: { groupId: trip.groupId, date: { gte: trip.startDate, lte: trip.endDate } },
-          select: { amount: true, currency: true },
-        })
-        actualSpent = expenses
-          .filter((e) => (e.currency ?? trip.currency) === trip.currency)
-          .reduce((s, e) => s + e.amount, 0) / 100
-      }
-      return toApi(trip, actualSpent)
-    })
-  )
+  const groupIds = trips.map((t) => t.groupId).filter(Boolean) as string[]
+  const allExpenses = groupIds.length > 0
+    ? await prisma.expense.findMany({
+        where: { groupId: { in: groupIds } },
+        select: { amount: true, currency: true, groupId: true, date: true },
+      })
+    : []
+
+  const expensesByGroup = new Map<string, typeof allExpenses>()
+  for (const e of allExpenses) {
+    const list = expensesByGroup.get(e.groupId) ?? []
+    list.push(e)
+    expensesByGroup.set(e.groupId, list)
+  }
+
+  const result = trips.map((trip) => {
+    let actualSpent = 0
+    if (trip.groupId) {
+      const expenses = expensesByGroup.get(trip.groupId) ?? []
+      actualSpent = expenses
+        .filter(
+          (e) =>
+            e.date >= trip.startDate &&
+            e.date <= trip.endDate &&
+            (e.currency ?? trip.currency) === trip.currency
+        )
+        .reduce((s, e) => s + e.amount, 0) / 100
+    }
+    return toApi(trip, actualSpent)
+  })
 
   return Response.json(result)
 }

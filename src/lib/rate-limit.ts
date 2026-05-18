@@ -46,6 +46,10 @@ const useUpstash =
   !!process.env.UPSTASH_REDIS_REST_URL &&
   !!process.env.UPSTASH_REDIS_REST_TOKEN
 
+if (!useUpstash && typeof process !== "undefined" && process.env.NODE_ENV === "production") {
+  console.warn("[rate-limit] Upstash env vars not set — falling back to in-memory rate limiting (ineffective in serverless). Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel.")
+}
+
 export async function checkRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
   if (useUpstash) return upstashRateLimit(key, max, windowMs)
   return inMemoryRateLimit(key, max, windowMs)
