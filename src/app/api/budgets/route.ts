@@ -38,7 +38,11 @@ export async function DELETE(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { category } = await req.json()
+  const body = await req.json()
+  const { category } = body ?? {}
+  if (!category || typeof category !== "string" || !(CATEGORIES as readonly string[]).includes(category)) {
+    return Response.json({ error: "Invalid category" }, { status: 400 })
+  }
   await prisma.personalBudget.deleteMany({ where: { userId: user.id, category } })
   return Response.json({ success: true }, { status: 200 })
 }
