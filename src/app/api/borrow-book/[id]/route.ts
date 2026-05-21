@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 type EntryWithUsers = Prisma.BorrowEntryGetPayload<{
   include: {
@@ -45,6 +46,20 @@ export async function PATCH(
     },
   })
 
+  // Notify borrower that the debt is cleared
+  const borrower = await prisma.user.findUnique({
+    where: { id: updated.borrowerId },
+    select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+  })
+  if (borrower) {
+    notifyUsers(
+      [borrower],
+      "✅ IOU Settled",
+      `${getDisplayName(user)} marked your debt as settled`,
+      { type: "iou_settled", url: buildAppUrl("borrow-book") },
+    ).catch(() => {})
+  }
+
   return Response.json(toApi(updated))
 }
 
@@ -69,6 +84,23 @@ export async function DELETE(
     return Response.json({ error: "Only the lender can delete this entry" }, { status: 403 })
   }
 
+  // Fetch borrower's push token before deleting
+  const borrowerWithToken = await prisma.user.findUnique({
+    where: { id: entry.borrowerId },
+    select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+  })
+
   await prisma.borrowEntry.delete({ where: { id } })
+
+  if (borrowerWithToken) {
+    const amtStr = `${entry.amount / 100} ${entry.currency}`
+    notifyUsers(
+      [borrowerWithToken],
+      "🗑️ IOU Removed",
+      `${getDisplayName(user)} removed an IOU of ${amtStr}`,
+      { type: "iou_deleted", url: buildAppUrl("borrow-book") },
+    ).catch(() => {})
+  }
+
   return Response.json({ success: true }, { status: 200 })
 }

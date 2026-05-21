@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 type EntryWithPayments = Prisma.BorrowEntryGetPayload<{
   include: {
@@ -101,6 +102,24 @@ export async function POST(req: NextRequest) {
       payments: true,
     },
   })
+
+  // Notify the other person
+  const otherUserId = iAmLender ? entry.borrowerId : entry.lenderId
+  const otherUser = await prisma.user.findUnique({
+    where: { id: otherUserId },
+    select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
+  })
+  if (otherUser) {
+    const myName = getDisplayName(user)
+    const amtStr = `${entry.amount / 100} ${entry.currency}`
+    const [title, body] = iAmLender
+      ? ["📖 New IOU", `${myName} lent you ${amtStr}`]
+      : ["📖 New IOU", `${myName} says they borrowed ${amtStr} from you`]
+    notifyUsers([otherUser], title, body, {
+      type: "iou_created",
+      url: buildAppUrl("borrow-book"),
+    }).catch(() => {})
+  }
 
   return Response.json(toApi(entry), { status: 201 })
 }

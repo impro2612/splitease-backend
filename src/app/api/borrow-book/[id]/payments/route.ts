@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 
 // POST /api/borrow-book/[id]/payments — record a partial payment
 export async function POST(
@@ -23,7 +24,11 @@ export async function POST(
       OR: [{ lenderId: user.id }, { borrowerId: user.id }],
       status: "PENDING",
     },
-    include: { payments: true },
+    include: {
+      payments: true,
+      lender: { select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } } },
+      borrower: { select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } } },
+    },
   })
   if (!entry) return Response.json({ error: "Entry not found or already settled" }, { status: 404 })
 
@@ -46,12 +51,28 @@ export async function POST(
   // Auto-settle only when the lender records/confirms the final payment.
   // Borrowers can add payments, but lender confirmation is required to settle.
   const newTotal = paidSoFar + payAmount
-  if (newTotal >= entry.amount && entry.lenderId === user.id) {
+  const isLender = entry.lenderId === user.id
+  const autoSettled = newTotal >= entry.amount && isLender
+  if (autoSettled) {
     await prisma.borrowEntry.update({
       where: { id },
       data: { status: "SETTLED", settledAt: new Date() },
     })
   }
+
+  // Notify the other person
+  const otherUser = isLender ? entry.borrower : entry.lender
+  const myName = getDisplayName(user)
+  const amtStr = `${amount} ${entry.currency}`
+  const [title, body] = autoSettled
+    ? ["✅ IOU Settled", `${myName} confirmed full payment received — IOU settled!`]
+    : isLender
+      ? ["💰 Part Payment Recorded", `${myName} recorded a payment of ${amtStr}`]
+      : ["💰 Part Payment", `${myName} made a payment of ${amtStr}`]
+  notifyUsers([otherUser], title, body, {
+    type: "iou_payment",
+    url: buildAppUrl("borrow-book"),
+  }).catch(() => {})
 
   return Response.json({ ...payment, amount: payment.amount / 100 }, { status: 201 })
 }
