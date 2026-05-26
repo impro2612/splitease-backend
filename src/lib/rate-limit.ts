@@ -37,7 +37,8 @@ async function upstashRateLimit(key: string, max: number, windowMs: number): Pro
     ]),
   })
   if (!res.ok) return true // fail open — never block on infra errors
-  const [[, count]] = await res.json() as [[string, number]]
+  const results = await res.json() as { result: number }[]
+  const count = results[0]?.result ?? 0
   return count <= max
 }
 
