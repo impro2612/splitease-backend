@@ -21,6 +21,10 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Missing fields" }, { status: 400 })
   }
 
+  if (typeof content !== "string" || content.length > 10_000) {
+    return Response.json({ error: "Message too long" }, { status: 400 })
+  }
+
   // Check they are friends and neither has blocked the other
   const [friendship, block] = await Promise.all([
     prisma.friend.findFirst({

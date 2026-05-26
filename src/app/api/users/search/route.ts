@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const q = req.nextUrl.searchParams.get("q")?.trim() ?? ""
-  if (q.length < 3) return Response.json([])
+  if (q.length < 3 || q.length > 100) return Response.json([])
 
   const select = { id: true, name: true, email: true, image: true } as const
 

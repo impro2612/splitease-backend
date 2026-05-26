@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
+import { checkRateLimit } from "@/lib/rate-limit"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -50,6 +51,11 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+
+  // 20 friend requests per hour per user
+  if (!await checkRateLimit(`friend-requests:${user.id}`, 20, 60 * 60 * 1000)) {
+    return Response.json({ error: "Too many friend requests. Please slow down." }, { status: 429 })
+  }
 
   try {
     const { addresseeId } = await req.json()

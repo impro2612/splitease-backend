@@ -43,7 +43,7 @@ export async function POST(
     }
 
     const numAmount = parseFloat(amount)
-    if (isNaN(numAmount) || numAmount <= 0) {
+    if (!Number.isFinite(numAmount) || numAmount <= 0 || numAmount > 1_000_000) {
       return Response.json({ error: "Invalid amount" }, { status: 400 })
     }
 

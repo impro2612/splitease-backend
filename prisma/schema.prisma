@@ -55,7 +55,7 @@ model BorrowEntry {
   id         String    @id @default(cuid())
   lenderId   String
   borrowerId String
-  amount     Int       // stored in paise/cents (original full amount)
+  amount     Int       // stored in paise (original full amount)
   currency   String    @default("INR")
   note       String?
   date       DateTime  @default(now())
@@ -74,7 +74,7 @@ model BorrowEntry {
 model BorrowPayment {
   id        String   @id @default(cuid())
   entryId   String
-  amount    Int      // paise/cents paid back
+  amount    Int      // paise paid back
   date      DateTime @default(now())
   note      String?
   createdAt DateTime @default(now())
@@ -410,7 +410,7 @@ model Trip {
   emoji       String   @default("✈️")
   startDate   DateTime
   endDate     DateTime
-  totalBudget Int      // stored in paise/cents
+  totalBudget Int      // stored in paise
   currency    String   @default("INR")
   status      String   @default("PLANNING") // PLANNING | ACTIVE | COMPLETED
   groupId     String?
@@ -453,7 +453,7 @@ model SpendEntry {
   id        String     @id @default(cuid())
   diaryId   String
   title     String
-  amount    Int        // stored in paise/cents
+  amount    Int        // stored in paise
   currency  String     @default("INR")
   date      DateTime
   createdAt DateTime   @default(now())
