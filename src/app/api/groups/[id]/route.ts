@@ -69,7 +69,7 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const { name, description, emoji, color, currency } = await req.json()
+  const { name, description, emoji, color, currency, location, lat, lng, startDate, endDate } = await req.json()
 
   const member = await prisma.groupMember.findUnique({
     where: { groupId_userId: { groupId: id, userId: user.id } },
@@ -95,6 +95,39 @@ export async function PATCH(
     }
   }
 
+  const patchStartDate = startDate === undefined || startDate === null || startDate === ""
+    ? null
+    : new Date(startDate)
+  const patchEndDate = endDate === undefined || endDate === null || endDate === ""
+    ? null
+    : new Date(endDate)
+
+  if (startDate !== undefined && patchStartDate && isNaN(patchStartDate.getTime())) {
+    return Response.json({ error: "Invalid startDate" }, { status: 400 })
+  }
+  if (endDate !== undefined && patchEndDate && isNaN(patchEndDate.getTime())) {
+    return Response.json({ error: "Invalid endDate" }, { status: 400 })
+  }
+  if (patchStartDate && patchEndDate && patchStartDate > patchEndDate) {
+    return Response.json({ error: "endDate must be on or after startDate" }, { status: 400 })
+  }
+
+  let patchLat = lat
+  let patchLng = lng
+  if (location !== undefined && location?.trim() && patchLat === null) {
+    try {
+      const geo = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location.trim())}&format=json&limit=1`,
+        { headers: { "User-Agent": "SplitEase/1.0" } }
+      )
+      const geoData = await geo.json()
+      if (geoData[0]) {
+        patchLat = parseFloat(geoData[0].lat)
+        patchLng = parseFloat(geoData[0].lon)
+      }
+    } catch { /* geocoding failure is non-fatal */ }
+  }
+
   const group = await prisma.group.update({
     where: { id },
     data: {
@@ -103,6 +136,11 @@ export async function PATCH(
       ...(emoji !== undefined && { emoji }),
       ...(color !== undefined && { color }),
       ...(currency !== undefined && { currency }),
+      ...(location !== undefined && { location: location?.trim() || null }),
+      ...(lat !== undefined && { lat: patchLat }),
+      ...(lng !== undefined && { lng: patchLng }),
+      ...(startDate !== undefined && { startDate: patchStartDate }),
+      ...(endDate !== undefined && { endDate: patchEndDate }),
     },
   })
 
