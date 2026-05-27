@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { pusherServer } from "@/lib/pusher"
 
 type EntryWithPayments = Prisma.BorrowEntryGetPayload<{
   include: {
@@ -103,8 +104,15 @@ export async function POST(req: NextRequest) {
     },
   })
 
-  // Notify the other person
+  // Push real-time update to both parties
   const otherUserId = iAmLender ? entry.borrowerId : entry.lenderId
+  pusherServer.trigger(
+    [`private-user-${user.id}`, `private-user-${otherUserId}`],
+    "iou-updated",
+    {},
+  ).catch(() => {})
+
+  // Notify the other person
   const otherUser = await prisma.user.findUnique({
     where: { id: otherUserId },
     select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },

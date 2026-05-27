@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { pusherServer } from "@/lib/pusher"
 
 type EntryWithUsers = Prisma.BorrowEntryGetPayload<{
   include: {
@@ -45,6 +46,13 @@ export async function PATCH(
       borrower: { select: { id: true, name: true, email: true, image: true } },
     },
   })
+
+  // Push real-time update to both parties
+  pusherServer.trigger(
+    [`private-user-${user.id}`, `private-user-${updated.borrowerId}`],
+    "iou-updated",
+    {},
+  ).catch(() => {})
 
   // Notify borrower that the debt is cleared
   const borrower = await prisma.user.findUnique({
@@ -91,6 +99,13 @@ export async function DELETE(
   })
 
   await prisma.borrowEntry.delete({ where: { id } })
+
+  // Push real-time update to both parties
+  pusherServer.trigger(
+    [`private-user-${user.id}`, `private-user-${entry.borrowerId}`],
+    "iou-updated",
+    {},
+  ).catch(() => {})
 
   if (borrowerWithToken) {
     const amtStr = `${entry.amount / 100} ${entry.currency}`

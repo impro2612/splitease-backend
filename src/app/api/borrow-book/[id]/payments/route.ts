@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { pusherServer } from "@/lib/pusher"
 
 // POST /api/borrow-book/[id]/payments — record a partial payment
 export async function POST(
@@ -59,6 +60,13 @@ export async function POST(
       data: { status: "SETTLED", settledAt: new Date() },
     })
   }
+
+  // Push real-time update to both parties
+  pusherServer.trigger(
+    [`private-user-${entry.lenderId}`, `private-user-${entry.borrowerId}`],
+    "iou-updated",
+    {},
+  ).catch(() => {})
 
   // Notify the other person
   const otherUser = isLender ? entry.borrower : entry.lender
