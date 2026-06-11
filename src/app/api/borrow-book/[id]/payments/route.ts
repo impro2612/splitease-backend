@@ -72,11 +72,14 @@ export async function POST(
   const otherUser = isLender ? entry.borrower : entry.lender
   const myName = getDisplayName(user)
   const amtStr = `${amount} ${entry.currency}`
+  const isBorrowerFullPayment = !isLender && newTotal >= entry.amount
   const [title, body] = autoSettled
     ? ["✅ IOU Settled", `${myName} confirmed full payment received — IOU settled!`]
-    : isLender
-      ? ["💰 Part Payment Recorded", `${myName} recorded a payment of ${amtStr}`]
-      : ["💰 Part Payment", `${myName} made a payment of ${amtStr}`]
+    : isBorrowerFullPayment
+      ? ["💳 Full Payment Made", `${myName} has paid ${amtStr} in full — please confirm to settle`]
+      : isLender
+        ? ["💰 Part Payment Recorded", `${myName} recorded a payment of ${amtStr}`]
+        : ["💰 Part Payment", `${myName} made a payment of ${amtStr}`]
   notifyUsers([otherUser], title, body, {
     type: "iou_payment",
     url: buildAppUrl("borrow-book"),
