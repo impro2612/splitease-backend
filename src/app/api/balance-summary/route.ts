@@ -19,7 +19,8 @@ export async function GET(req: NextRequest) {
   // Accumulate raw owe/owed per currency — client will convert using its own cached rates
   const perCurrency: Record<string, { owe: number; owed: number }> = {}
   // Per counterparty: net per currency (+ = they owe you) and the groups it comes from
-  const people = new Map<string, { nets: Record<string, number>; groups: Map<string, { id: string; name: string; emoji: string }> }>()
+  type PersonGroup = { id: string; name: string; emoji: string; nets: Record<string, number> }
+  const people = new Map<string, { nets: Record<string, number>; groups: Map<string, PersonGroup> }>()
 
   const groupIds = groups.map((g) => g.id)
   const [allExpenses, allSettlements] = await Promise.all([
@@ -66,9 +67,12 @@ export async function GET(req: NextRequest) {
       for (const otherId of others) {
         const theyOweMe = getPairwiseNetCents(balanceCents, otherId, user.id)
         if (theyOweMe === 0) continue
-        const entry = people.get(otherId) ?? { nets: {} as Record<string, number>, groups: new Map<string, { id: string; name: string; emoji: string }>() }
+        const entry = people.get(otherId) ?? { nets: {} as Record<string, number>, groups: new Map<string, PersonGroup>() }
         entry.nets[currency] = (entry.nets[currency] ?? 0) + theyOweMe
-        entry.groups.set(group.id, { id: group.id, name: group.name, emoji: group.emoji })
+        // Per-group nets let the app open the group the debt actually lives in
+        const g = entry.groups.get(group.id) ?? { id: group.id, name: group.name, emoji: group.emoji, nets: {} }
+        g.nets[currency] = (g.nets[currency] ?? 0) + theyOweMe
+        entry.groups.set(group.id, g)
         people.set(otherId, entry)
       }
 
@@ -90,7 +94,11 @@ export async function GET(req: NextRequest) {
       const nets = Object.fromEntries(
         Object.entries(p.nets).filter(([, v]) => v !== 0).map(([c, v]) => [c, centsToDisplay(v)])
       )
-      return { user: u, nets, groups: [...p.groups.values()] }
+      const groups = [...p.groups.values()].map((g) => ({
+        ...g,
+        nets: Object.fromEntries(Object.entries(g.nets).filter(([, v]) => v !== 0).map(([c, v]) => [c, centsToDisplay(v)])),
+      }))
+      return { user: u, nets, groups }
     })
     .filter((p) => Object.keys(p.nets).length > 0)
 

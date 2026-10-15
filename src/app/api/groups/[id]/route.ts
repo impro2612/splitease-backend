@@ -1,6 +1,7 @@
 import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { getNetPerPerson } from "@/lib/balance"
 import { logActivity } from "@/lib/activity"
 import { geocode } from "@/lib/geocode"
 import { readJson, type JsonBody } from "@/lib/request"
@@ -182,6 +183,23 @@ export async function DELETE(
     where: { id },
     select: { name: true, emoji: true },
   })
+
+  // Deleting a group with open balances would silently wipe what members owe each other
+  // (an admin who owes money could erase their own debt), so everyone must be settled first.
+  const [groupExpenses, groupSettlements] = await Promise.all([
+    prisma.expense.findMany({ where: { groupId: id }, select: { currency: true, paidById: true, splits: { select: { userId: true, amount: true, paid: true } } } }),
+    prisma.settlement.findMany({ where: { groupId: id }, select: { currency: true, fromUserId: true, toUserId: true, amount: true } }),
+  ])
+  for (const currency of new Set([...groupExpenses.map((e) => e.currency), ...groupSettlements.map((x) => x.currency)])) {
+    const nets = getNetPerPerson(
+      groupExpenses.filter((e) => e.currency === currency),
+      groupSettlements.filter((x) => x.currency === currency),
+      true
+    )
+    if ([...nets.values()].some((cents) => cents !== 0)) {
+      return Response.json({ error: "Some members still owe money in this group. Settle all balances before deleting it." }, { status: 409 })
+    }
+  }
 
   // Log before delete so groupId relation is still valid (onDelete: SetNull keeps the row)
   await logActivity({
