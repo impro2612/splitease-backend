@@ -32,7 +32,6 @@ model User {
   receivedSettlements   Settlement[]  @relation("ToUser")
   sentFriendRequests    Friend[]      @relation("FriendRequester")
   receivedFriendRequests Friend[]     @relation("FriendAddressee")
-  sentInvitations       Invitation[]  @relation("InvitedBy")
   createdGroups         Group[]
   sentMessages          Message[]     @relation("SentMessages")
   receivedMessages      Message[]     @relation("ReceivedMessages")
@@ -191,7 +190,6 @@ model Group {
   members     GroupMember[]
   expenses    Expense[]
   settlements Settlement[]
-  invitations Invitation[]
   activities  Activity[]
   trips       Trip[]
 }
@@ -343,19 +341,6 @@ model Block {
   @@unique([blockerId, blockedId])
 }
 
-model Invitation {
-  id          String   @id @default(cuid())
-  groupId     String
-  email       String
-  token       String   @unique @default(cuid())
-  status      String   @default("PENDING")
-  invitedById String
-  createdAt   DateTime @default(now())
-  expiresAt   DateTime
-
-  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  invitedBy User  @relation("InvitedBy", fields: [invitedById], references: [id])
-}
 
 model PersonalTransaction {
   id             String   @id @default(cuid())

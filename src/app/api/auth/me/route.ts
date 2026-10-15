@@ -49,7 +49,6 @@ export async function DELETE(req: NextRequest) {
       await tx.friend.deleteMany({ where: { OR: [{ requesterId: uid }, { addresseeId: uid }] } })
       await tx.message.deleteMany({ where: { OR: [{ senderId: uid }, { receiverId: uid }] } })
       await tx.block.deleteMany({ where: { OR: [{ blockerId: uid }, { blockedId: uid }] } })
-      await tx.invitation.deleteMany({ where: { invitedById: uid } })
       await tx.borrowEntry.deleteMany({ where: { OR: [{ lenderId: uid }, { borrowerId: uid }] } })
       await tx.personalTransaction.deleteMany({ where: { userId: uid } })
       await tx.personalBudget.deleteMany({ where: { userId: uid } })
