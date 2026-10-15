@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Too many messages. Please slow down." }, { status: 429 })
   }
 
-  const { receiverId, content, clientId } = await req.json()
+  const { receiverId, content, clientId } = await req.json().catch(() => ({}))
 
-  if (!receiverId || !content || !clientId) {
+  if (typeof receiverId !== "string" || !receiverId || !content || typeof clientId !== "string" || !clientId || clientId.length > 100) {
     return Response.json({ error: "Missing fields" }, { status: 400 })
   }
 
@@ -48,9 +48,10 @@ export async function POST(req: NextRequest) {
   if (!friendship) return Response.json({ error: "Not friends" }, { status: 403 })
   if (block) return Response.json({ error: "Blocked" }, { status: 403 })
 
-  // Upsert by clientId to handle retries
+  // Upsert by (sender, clientId) to handle retries — scoped to the sender so a
+  // guessed clientId can never return someone else's message
   const message = await prisma.message.upsert({
-    where: { clientId },
+    where: { senderId_clientId: { senderId: user.id, clientId } },
     update: {},
     create: {
       senderId: user.id,
@@ -66,17 +67,19 @@ export async function POST(req: NextRequest) {
     clientId: message.clientId,
   }).catch(() => {}) // non-fatal
 
-  const receiver = await prisma.user.findUnique({
-    where: { id: receiverId },
-    select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
-  })
-  if (receiver) {
-    await notifyUsers([receiver], getDisplayName(user), "Sent you a message", {
-      type: "chat_message",
-      friendId: user.id,
-      url: buildAppUrl(`chat/${user.id}`, { name: user.name ?? user.email }),
+  after(async () => {
+    const receiver = await prisma.user.findUnique({
+      where: { id: receiverId },
+      select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
     })
-  }
+    if (receiver) {
+      await notifyUsers([receiver], getDisplayName(user), "Sent you a message", {
+        type: "chat_message",
+        friendId: user.id,
+        url: buildAppUrl(`chat/${user.id}`, { name: user.name ?? user.email }),
+      })
+    }
+  })
 
   return Response.json(message, { status: 201 })
 }
@@ -86,8 +89,8 @@ export async function DELETE(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { ids } = await req.json()
-  if (!Array.isArray(ids) || ids.length === 0) {
+  const { ids } = await req.json().catch(() => ({ ids: null }))
+  if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !ids.every((i) => typeof i === "string")) {
     return Response.json({ error: "ids required" }, { status: 400 })
   }
 

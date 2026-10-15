@@ -48,21 +48,39 @@ async function getDashboardData(userId: string) {
     }),
   ])
 
-  const balanceCents = buildBalanceMap(allExpenses, allSettlements, true)
-  const { oweCents, owedCents } = getUserTotals(balanceCents, userId)
-  const totalOwed = centsToDisplay(owedCents)
-  const totalOwe = centsToDisplay(oweCents)
+  // Balances are per group and per currency — different currencies are never added together
+  const perCurrency: Record<string, { owe: number; owed: number }> = {}
+  const keyOf = (groupId: string, currency: string) => `${groupId}|${currency}`
+  const buckets = new Map<string, { currency: string; exp: typeof allExpenses; set: typeof allSettlements }>()
+  for (const e of allExpenses) {
+    const k = keyOf(e.groupId, e.currency)
+    if (!buckets.has(k)) buckets.set(k, { currency: e.currency, exp: [], set: [] })
+    buckets.get(k)!.exp.push(e)
+  }
+  for (const st of allSettlements) buckets.get(keyOf(st.groupId, st.currency))?.set.push(st)
+  for (const { currency, exp, set } of buckets.values()) {
+    const { oweCents, owedCents } = getUserTotals(buildBalanceMap(exp, set, true), userId)
+    perCurrency[currency] ??= { owe: 0, owed: 0 }
+    perCurrency[currency].owe += centsToDisplay(oweCents)
+    perCurrency[currency].owed += centsToDisplay(owedCents)
+  }
+  const currencies = Object.keys(perCurrency)
+  const fmtEach = (pick: (v: { owe: number; owed: number }) => number, sign = "") =>
+    currencies.length === 0 ? formatCurrency(0) : currencies.map((c) => `${sign}${formatCurrency(pick(perCurrency[c]), c)}`).join(" · ")
+  const totalOwed = fmtEach((v) => v.owed, "+")
+  const totalOwe = fmtEach((v) => v.owe, "-")
+  const netPositive = currencies.every((c) => perCurrency[c].owed >= perCurrency[c].owe)
+  const netLabel = currencies.length === 0 ? formatCurrency(0)
+    : currencies.map((c) => { const n = perCurrency[c].owed - perCurrency[c].owe; return `${n >= 0 ? "+" : "-"}${formatCurrency(Math.abs(n), c)}` }).join(" · ")
 
-  return { groups, expenses, totalOwed, totalOwe }
+  return { groups, expenses, totalOwed, totalOwe, netLabel, netPositive }
 }
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions)
   if (!session?.user?.id) return null
 
-  const { groups, expenses, totalOwed, totalOwe } = await getDashboardData(session.user.id)
-
-  const netBalance = totalOwed - totalOwe
+  const { groups, expenses, totalOwed, totalOwe, netLabel, netPositive } = await getDashboardData(session.user.id)
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -84,15 +102,15 @@ export default async function DashboardPage() {
 
       {/* Balance cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <Card className={`relative overflow-hidden ${netBalance >= 0 ? "border-emerald-500/20" : "border-rose-500/20"}`}>
-          <div className={`absolute inset-0 ${netBalance >= 0 ? "bg-emerald-500/5" : "bg-rose-500/5"}`} />
+        <Card className={`relative overflow-hidden ${netPositive ? "border-emerald-500/20" : "border-rose-500/20"}`}>
+          <div className={`absolute inset-0 ${netPositive ? "bg-emerald-500/5" : "bg-rose-500/5"}`} />
           <CardContent className="pt-6">
             <p className="text-xs text-slate-400 mb-1">Net balance</p>
-            <p className={`text-3xl font-bold ${netBalance >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-              {netBalance >= 0 ? "+" : ""}{formatCurrency(netBalance)}
+            <p className={`text-3xl font-bold ${netPositive ? "text-emerald-400" : "text-rose-400"}`}>
+              {netLabel}
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              {netBalance >= 0 ? "You're in the clear!" : "Outstanding balance"}
+              {netPositive ? "You're in the clear!" : "Outstanding balance"}
             </p>
           </CardContent>
         </Card>
@@ -103,7 +121,7 @@ export default async function DashboardPage() {
               <TrendingUp className="w-4 h-4 text-emerald-400" />
               <p className="text-xs text-slate-400">You&apos;re owed</p>
             </div>
-            <p className="text-3xl font-bold text-emerald-400">+{formatCurrency(totalOwed)}</p>
+            <p className="text-3xl font-bold text-emerald-400">{totalOwed}</p>
             <p className="text-xs text-slate-500 mt-1">from friends</p>
           </CardContent>
         </Card>
@@ -114,7 +132,7 @@ export default async function DashboardPage() {
               <TrendingDown className="w-4 h-4 text-rose-400" />
               <p className="text-xs text-slate-400">You owe</p>
             </div>
-            <p className="text-3xl font-bold text-rose-400">-{formatCurrency(totalOwe)}</p>
+            <p className="text-3xl font-bold text-rose-400">{totalOwe}</p>
             <p className="text-xs text-slate-500 mt-1">to others</p>
           </CardContent>
         </Card>
@@ -202,9 +220,9 @@ export default async function DashboardPage() {
                     </div>
                     <div className="text-right flex-shrink-0">
                       <p className={`text-sm font-semibold ${myAmount >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                        {myAmount >= 0 ? "+" : ""}{formatCurrency(myAmount)}
+                        {myAmount >= 0 ? "+" : ""}{formatCurrency(myAmount, expense.currency)}
                       </p>
-                      <p className="text-xs text-slate-500">{formatCurrency(expenseDollars)} total</p>
+                      <p className="text-xs text-slate-500">{formatCurrency(expenseDollars, expense.currency)} total</p>
                     </div>
                   </div>
                 )

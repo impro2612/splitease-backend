@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { insertNewTransactions } from "@/lib/persist-transactions"
+import { parseMonth } from "@/lib/month"
 import {
   type AIRefineInput,
   type Category,
@@ -134,13 +136,19 @@ export async function POST(req: NextRequest) {
 
   const formData = await req.formData()
   const file = formData.get("file") as File | null
-  if (!file) return Response.json({ error: "No file provided" }, { status: 400 })
+  if (!file || typeof file === "string") return Response.json({ error: "No file provided" }, { status: 400 })
+  if (file.size > 15 * 1024 * 1024) {
+    return Response.json({ error: "File too large. Maximum size is 15 MB." }, { status: 413 })
+  }
   if (!file.name.toLowerCase().endsWith(".pdf") && file.type !== "application/pdf") {
     return Response.json({ error: "Please upload a PDF bank statement" }, { status: 400 })
   }
 
   const password = (formData.get("password") as string | null) ?? undefined
   const expectedMonth = (formData.get("expectedMonth") as string | null)?.trim() ?? ""
+  if (expectedMonth && !parseMonth(expectedMonth)) {
+    return Response.json({ error: "expectedMonth must be YYYY-MM" }, { status: 400 })
+  }
   const arrayBuffer = await file.arrayBuffer()
   const uint8Array = new Uint8Array(arrayBuffer)
   // Capture base64 before passing to pdf.js — pdf.js transfers/detaches the ArrayBuffer
@@ -337,13 +345,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  let imported = 0
-  for (const t of txns) {
-    try {
-      await prisma.personalTransaction.create({ data: t })
-      imported++
-    } catch { /* duplicate hash — skip */ }
-  }
+  const { imported } = await insertNewTransactions(txns)
 
   if (expectedMonth) {
     const generated = await generateSuggestionsForMonth(user.id, expectedMonth)

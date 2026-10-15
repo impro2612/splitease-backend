@@ -58,7 +58,17 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const { addresseeId } = await req.json()
+    const { addresseeId } = await req.json().catch(() => ({ addresseeId: undefined }))
+    if (typeof addresseeId !== "string" || !addresseeId) {
+      return Response.json({ error: "addresseeId is required" }, { status: 400 })
+    }
+    if (addresseeId === user.id) {
+      return Response.json({ error: "You can't send a friend request to yourself" }, { status: 400 })
+    }
+    const target = await prisma.user.findUnique({ where: { id: addresseeId }, select: { email: true } })
+    if (!target || target.email.endsWith("@deleted.invalid")) {
+      return Response.json({ error: "User not found" }, { status: 404 })
+    }
 
     const [existing, block] = await Promise.all([
       prisma.friend.findFirst({

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
@@ -48,11 +48,11 @@ export async function PATCH(
   })
 
   // Push real-time update to both parties
-  pusherServer.trigger(
+  after(() => pusherServer.trigger(
     [`private-user-${user.id}`, `private-user-${updated.borrowerId}`],
     "iou-updated",
     {},
-  ).catch(() => {})
+  ).catch(() => {}))
 
   // Notify borrower that the debt is cleared
   const borrower = await prisma.user.findUnique({
@@ -60,12 +60,12 @@ export async function PATCH(
     select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
   })
   if (borrower) {
-    notifyUsers(
+    after(() => notifyUsers(
       [borrower],
       "✅ IOU Settled",
       `${getDisplayName(user)} marked your debt as settled`,
       { type: "iou_settled", url: buildAppUrl("borrow-book") },
-    ).catch(() => {})
+    ).catch(() => {}))
   }
 
   return Response.json(toApi(updated))
@@ -101,20 +101,20 @@ export async function DELETE(
   await prisma.borrowEntry.delete({ where: { id } })
 
   // Push real-time update to both parties
-  pusherServer.trigger(
+  after(() => pusherServer.trigger(
     [`private-user-${user.id}`, `private-user-${entry.borrowerId}`],
     "iou-updated",
     {},
-  ).catch(() => {})
+  ).catch(() => {}))
 
   if (borrowerWithToken) {
     const amtStr = `${entry.amount / 100} ${entry.currency}`
-    notifyUsers(
+    after(() => notifyUsers(
       [borrowerWithToken],
       "🗑️ IOU Removed",
       `${getDisplayName(user)} removed an IOU of ${amtStr}`,
       { type: "iou_deleted", url: buildAppUrl("borrow-book") },
-    ).catch(() => {})
+    ).catch(() => {}))
   }
 
   return Response.json({ success: true }, { status: 200 })

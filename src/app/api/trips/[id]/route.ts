@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
+import { CURRENCY_RE, type JsonBody } from "@/lib/request"
 
 type TripWithDetails = Prisma.TripGetPayload<{
   include: {
@@ -114,7 +115,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const trip = await prisma.trip.findFirst({ where: { id, userId: user.id } })
   if (!trip) return Response.json({ error: "Not found" }, { status: 404 })
 
-  const { name, emoji, startDate, endDate, totalBudget, currency, status, groupId, categories } = await req.json()
+  const { name, emoji, startDate, endDate, totalBudget, currency, status, groupId, categories } =
+    await req.json().catch(() => ({} as JsonBody))
 
   if (groupId) {
     const member = await prisma.groupMember.findUnique({
@@ -123,6 +125,15 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (!member) return Response.json({ error: "Not a member of this group" }, { status: 403 })
   }
 
+  if (name !== undefined && (typeof name !== "string" || !name.trim() || name.length > 100)) {
+    return Response.json({ error: "Invalid name" }, { status: 400 })
+  }
+  if (status !== undefined && !["PLANNING", "ACTIVE", "COMPLETED"].includes(status)) {
+    return Response.json({ error: "Invalid status" }, { status: 400 })
+  }
+  if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
+    return Response.json({ error: "Invalid currency" }, { status: 400 })
+  }
   if (totalBudget !== undefined && (typeof totalBudget !== "number" || !Number.isFinite(totalBudget) || totalBudget <= 0)) {
     return Response.json({ error: "totalBudget must be a positive finite number" }, { status: 400 })
   }
@@ -138,55 +149,58 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return Response.json({ error: "endDate must be on or after startDate" }, { status: 400 })
   }
 
-  const updated = await prisma.trip.update({
-    where: { id },
-    data: {
-      ...(name !== undefined && { name }),
-      ...(emoji !== undefined && { emoji }),
-      ...(startDate !== undefined && { startDate: patchedStart }),
-      ...(endDate !== undefined && { endDate: patchedEnd }),
-      ...(totalBudget !== undefined && { totalBudget: Math.round(totalBudget * 100) }),
-      ...(currency !== undefined && { currency }),
-      ...(status !== undefined && { status }),
-      ...(groupId !== undefined && { groupId: groupId ?? null }),
-      updatedAt: new Date(),
-    },
-    include: {
-      categories: true,
-      group: { select: { id: true, name: true, emoji: true, color: true } },
-    },
-  })
+  // Validate EVERYTHING before writing anything — the old flow updated the trip first
+  // and could then reject the categories, leaving a half-applied edit.
+  const catList: { category: string; amount: number }[] = Array.isArray(categories) ? categories : []
+  for (const c of catList) {
+    if (!c?.category || typeof c.category !== "string" || !c.category.trim()) {
+      return Response.json({ error: "Each category must have a non-empty name" }, { status: 400 })
+    }
+    if (typeof c.amount !== "number" || !Number.isFinite(c.amount) || c.amount < 0) {
+      return Response.json({ error: `Category "${c.category}" has an invalid amount` }, { status: 400 })
+    }
+  }
+  // Allocation must fit the (possibly new) budget — checked even when only the
+  // budget changes, so lowering it can't strand categories above the total.
+  const effectiveBudget = totalBudget !== undefined ? Math.round(totalBudget * 100) : trip.totalBudget
+  const existingCats = await prisma.tripCategoryBudget.findMany({ where: { tripId: id } })
+  const catMap = new Map(existingCats.map((c) => [c.category, c.amount]))
+  for (const c of catList) catMap.set(c.category, Math.round(c.amount * 100))
+  const totalAllocated = Array.from(catMap.values()).reduce((s, a) => s + a, 0)
+  if (totalAllocated > effectiveBudget) {
+    return Response.json(
+      { error: `Category budgets (${totalAllocated / 100}) exceed total trip budget (${effectiveBudget / 100})` },
+      { status: 400 }
+    )
+  }
 
-  if (categories?.length) {
-    for (const c of categories) {
-      if (!c.category || typeof c.category !== "string" || !c.category.trim()) {
-        return Response.json({ error: "Each category must have a non-empty name" }, { status: 400 })
-      }
-      if (typeof c.amount !== "number" || !Number.isFinite(c.amount) || c.amount < 0) {
-        return Response.json({ error: `Category "${c.category}" has an invalid amount` }, { status: 400 })
-      }
-    }
-    const effectiveBudget = totalBudget !== undefined ? Math.round(totalBudget * 100) : updated.totalBudget
-    const existingCats = await prisma.tripCategoryBudget.findMany({ where: { tripId: id } })
-    const catMap = new Map(existingCats.map((c) => [c.category, c.amount]))
-    for (const c of categories) {
-      catMap.set(c.category, Math.round(c.amount * 100))
-    }
-    const totalAllocated = Array.from(catMap.values()).reduce((s, a) => s + a, 0)
-    if (totalAllocated > effectiveBudget) {
-      return Response.json(
-        { error: `Category budgets (${totalAllocated / 100}) exceed total trip budget (${effectiveBudget / 100})` },
-        { status: 400 }
-      )
-    }
-    for (const c of categories) {
-      await prisma.tripCategoryBudget.upsert({
+  const updated = await prisma.$transaction(async (tx) => {
+    for (const c of catList) {
+      await tx.tripCategoryBudget.upsert({
         where: { tripId_category: { tripId: id, category: c.category } },
         update: { amount: Math.round(c.amount * 100) },
         create: { tripId: id, category: c.category, amount: Math.round(c.amount * 100) },
       })
     }
-  }
+    return tx.trip.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(emoji !== undefined && { emoji }),
+        ...(startDate !== undefined && { startDate: patchedStart }),
+        ...(endDate !== undefined && { endDate: patchedEnd }),
+        ...(totalBudget !== undefined && { totalBudget: effectiveBudget }),
+        ...(currency !== undefined && { currency }),
+        ...(status !== undefined && { status }),
+        ...(groupId !== undefined && { groupId: groupId ?? null }),
+        updatedAt: new Date(),
+      },
+      include: {
+        categories: true,
+        group: { select: { id: true, name: true, emoji: true, color: true } },
+      },
+    })
+  })
 
   return Response.json(toApi(updated))
 }

@@ -15,9 +15,12 @@ export async function PATCH(
   const member = await prisma.groupMember.findUnique({
     where: { groupId_userId: { groupId, userId: user.id } },
   })
-  if (!member) return Response.json({ error: "Not a member" }, { status: 403 })
+  // Switching how the whole group's debts are presented is an admin decision
+  if (!member || member.role !== "ADMIN") {
+    return Response.json({ error: "Only admins can change Smart Debts" }, { status: 403 })
+  }
 
-  const { enabled } = await req.json()
+  const { enabled } = await req.json().catch(() => ({ enabled: undefined }))
   if (typeof enabled !== "boolean") {
     return Response.json({ error: "enabled must be a boolean" }, { status: 400 })
   }

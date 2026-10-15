@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { GoogleGenerativeAI } from "@google/generative-ai"
+import { currentMonth, parseMonth } from "@/lib/month"
 
 // GET /api/transactions/insights?month=2026-04
 export async function GET(req: NextRequest) {
@@ -10,10 +11,9 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const month = searchParams.get("month")
-  const now = new Date()
-  const [y, m] = month
-    ? month.split("-").map(Number)
-    : [now.getFullYear(), now.getMonth() + 1]
+  const parsed = month ? parseMonth(month) : currentMonth()
+  if (!parsed) return Response.json({ error: "month must be YYYY-MM" }, { status: 400 })
+  const { y, m } = parsed
 
   const start = new Date(y, m - 1, 1)
   const end   = new Date(y, m, 1)

@@ -4,20 +4,25 @@ import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
 import { Prisma } from "@/generated/prisma/client"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { EMAIL_RE, normalizeEmail } from "@/lib/email"
+import { clientIp, readJson } from "@/lib/request"
 
 export async function POST(req: NextRequest) {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
-  if (!await checkRateLimit(`register:${ip}`, 10, 60 * 60 * 1000)) {
+  if (!await checkRateLimit(`register:${clientIp(req)}`, 10, 60 * 60 * 1000)) {
     return Response.json({ error: "Too many registrations from this IP. Please try again later." }, { status: 429 })
   }
 
   try {
-    const { name, email, phone, password } = await req.json()
+    const body = await readJson<{ name: string; email: string; phone: string; password: string }>(req)
+    const name = typeof body.name === "string" ? body.name.trim() : ""
+    const email = normalizeEmail(body.email)
+    const phone = typeof body.phone === "string" ? body.phone.trim() : ""
+    const password = typeof body.password === "string" ? body.password : ""
 
     if (!email || !password || !name) {
       return Response.json({ error: "Name, email and password are required" }, { status: 400 })
     }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!EMAIL_RE.test(email) || email.length > 254) {
       return Response.json({ error: "Invalid email format" }, { status: 400 })
     }
     if (password.length < 8) {
@@ -25,6 +30,9 @@ export async function POST(req: NextRequest) {
     }
     if (!/\d/.test(password)) {
       return Response.json({ error: "Password must contain at least one number" }, { status: 400 })
+    }
+    if (name.length > 100 || password.length > 200) {
+      return Response.json({ error: "Name or password is too long" }, { status: 400 })
     }
 
     const existing = await prisma.user.findUnique({ where: { email } })
@@ -36,7 +44,7 @@ export async function POST(req: NextRequest) {
     let phoneData: { phone?: string; phoneNormalized?: string } = {}
     if (phone) {
       const normalizedPhone = normalizePhone(phone)
-      if (normalizedPhone) {
+      if (normalizedPhone.replace(/\D/g, "").length >= 8) {
         const existingPhone = await prisma.user.findFirst({
           where: { OR: [{ phoneNormalized: normalizedPhone }, { phone }] },
         })

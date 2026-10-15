@@ -1,7 +1,12 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
+import { EMAIL_RE, normalizeEmail } from "@/lib/email"
+import { readJson } from "@/lib/request"
+import { blockedPairs, pairKey } from "@/lib/blocks"
+
+const pushUserSelect = { id: true, name: true, email: true, pushDevices: { select: { token: true } } } as const
 
 export async function POST(
   req: NextRequest,
@@ -20,41 +25,40 @@ export async function POST(
   }
 
   try {
-    const { email } = await req.json()
+    const { email: rawEmail } = await readJson<{ email: string }>(req)
+    const email = normalizeEmail(rawEmail)
 
     if (!email) return Response.json({ error: "Email is required" }, { status: 400 })
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (!EMAIL_RE.test(email)) {
       return Response.json({ error: "Invalid email format" }, { status: 400 })
     }
 
     const newUser = await prisma.user.findUnique({ where: { email } })
-    if (!newUser) {
+    if (!newUser || email.endsWith("@deleted.invalid")) {
       return Response.json({ error: "No user found with that email" }, { status: 404 })
     }
 
-    const existing = await prisma.groupMember.findUnique({
-      where: { groupId_userId: { groupId, userId: newUser.id } },
-    })
-    if (existing) {
+    const existingMembers = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } })
+    if (existingMembers.some((m) => m.userId === newUser.id)) {
       return Response.json({ error: "User is already a member" }, { status: 409 })
+    }
+    const memberIds = existingMembers.map((m) => m.userId)
+
+    // Blocks are honoured both ways: the adder can't pull in someone they blocked or
+    // who blocked them, and no friendship is ever auto-created across a block.
+    const blocked = await blockedPairs(newUser.id, memberIds)
+    if (blocked.has(pairKey(user.id, newUser.id))) {
+      return Response.json({ error: "Unable to add this user" }, { status: 403 })
     }
 
     const member = await prisma.groupMember.create({
       data: { groupId, userId: newUser.id, role: "MEMBER" },
       include: { user: { select: { id: true, name: true, email: true, image: true } } },
     })
-
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
 
-    // Auto-create ACCEPTED friendships between the new member and all existing group members
-    const existingMembers = await prisma.groupMember.findMany({
-      where: { groupId, userId: { not: newUser.id } },
-      select: { userId: true },
-    })
-
-    const memberIds = existingMembers.map((m) => m.userId)
-
-    // Fetch all existing friendships involving the new user in one query
+    // Auto-create ACCEPTED friendships with co-members that have no prior relationship
+    // (a REJECTED/REMOVED history is respected) and no block between them.
     const existingFriendships = await prisma.friend.findMany({
       where: {
         OR: [
@@ -64,55 +68,36 @@ export async function POST(
       },
       select: { requesterId: true, addresseeId: true },
     })
-    const alreadyFriendsSet = new Set(
-      existingFriendships.flatMap((f) => [f.requesterId, f.addresseeId])
-    )
-
+    const related = new Set(existingFriendships.flatMap((f) => [f.requesterId, f.addresseeId]))
     for (const memberId of memberIds) {
-      if (!alreadyFriendsSet.has(memberId)) {
-        await prisma.friend.create({
-          data: { requesterId: memberId, addresseeId: newUser.id, status: "ACCEPTED" },
-        })
-      }
+      if (related.has(memberId) || blocked.has(pairKey(memberId, newUser.id))) continue
+      await prisma.friend.create({
+        data: { requesterId: memberId, addresseeId: newUser.id, status: "ACCEPTED" },
+      })
     }
 
-    // Send push notification to the newly added member
-    const [newMemberWithToken, group, adder, currentMembers] = await Promise.all([
-      prisma.user.findUnique({
-        where: { id: newUser.id },
-        select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
-      }),
-      prisma.group.findUnique({ where: { id: groupId }, select: { name: true, emoji: true } }),
-      prisma.user.findUnique({ where: { id: admin.userId }, select: { name: true } }),
-      prisma.groupMember.findMany({
-        where: { groupId },
-        include: {
-          user: {
-            select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
-          },
-        },
-      }),
-    ])
-    if (newMemberWithToken && group) {
+    after(async () => {
+      const [newMemberWithToken, group, currentMembers] = await Promise.all([
+        prisma.user.findUnique({ where: { id: newUser.id }, select: pushUserSelect }),
+        prisma.group.findUnique({ where: { id: groupId }, select: { name: true, emoji: true } }),
+        prisma.groupMember.findMany({ where: { groupId }, include: { user: { select: pushUserSelect } } }),
+      ])
+      if (newMemberWithToken && group) {
+        await notifyUsers(
+          [newMemberWithToken],
+          `${group.emoji} Added to ${group.name}`,
+          `${getDisplayName(user)} added you to "${group.name}". Open SplitIT to view it.`,
+          { groupId, type: "member_added", url: buildAppUrl(`group/${groupId}`) }
+        )
+      }
       await notifyUsers(
-        [newMemberWithToken],
-        `${group.emoji} Added to ${group.name}`,
-        `${adder?.name ?? "Someone"} added you to "${group.name}". Open SplitIT to view it.`,
-        { groupId, type: "member_added", url: buildAppUrl(`group/${groupId}`) }
+        currentMembers.map((m) => m.user),
+        `${group?.emoji ?? "👥"} New member in ${group?.name ?? "your group"}`,
+        `${getDisplayName(newUser)} joined "${group?.name ?? "your group"}"`,
+        { type: "member_added", groupId, userId: newUser.id, url: buildAppUrl(`group/${groupId}`) },
+        [user.id, newUser.id]
       )
-    }
-    await notifyUsers(
-      currentMembers.map((m) => m.user),
-      `${group?.emoji ?? "👥"} New member in ${group?.name ?? "your group"}`,
-      `${getDisplayName(newUser)} joined "${group?.name ?? "your group"}"`,
-      {
-        type: "member_added",
-        groupId,
-        userId: newUser.id,
-        url: buildAppUrl(`group/${groupId}`),
-      },
-      [user.id, newUser.id]
-    )
+    })
 
     return Response.json(member, { status: 201 })
   } catch (err) {
@@ -129,7 +114,10 @@ export async function DELETE(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id: groupId } = await params
-  const { userId } = await req.json()
+  const { userId } = await readJson<{ userId: string }>(req)
+  if (typeof userId !== "string" || !userId) {
+    return Response.json({ error: "userId is required" }, { status: 400 })
+  }
 
   const admin = await prisma.groupMember.findUnique({
     where: { groupId_userId: { groupId, userId: user.id } },
@@ -159,17 +147,10 @@ export async function DELETE(
 
   const [group, targetUser, remainingMembers] = await Promise.all([
     prisma.group.findUnique({ where: { id: groupId }, select: { name: true, emoji: true } }),
-    prisma.user.findUnique({
-      where: { id: userId },
-      select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
-    }),
+    prisma.user.findUnique({ where: { id: userId }, select: pushUserSelect }),
     prisma.groupMember.findMany({
       where: { groupId, userId: { not: userId } },
-      include: {
-        user: {
-          select: { id: true, name: true, email: true, pushDevices: { select: { token: true } } },
-        },
-      },
+      include: { user: { select: pushUserSelect } },
     }),
   ])
 
@@ -177,34 +158,25 @@ export async function DELETE(
     where: { groupId_userId: { groupId, userId } },
   })
 
-  if (targetUser && targetUser.id !== user.id) {
+  after(async () => {
+    if (targetUser && targetUser.id !== user.id) {
+      await notifyUsers(
+        [targetUser],
+        `${group?.emoji ?? "👋"} Removed from ${group?.name ?? "group"}`,
+        `${getDisplayName(user)} removed you from "${group?.name ?? "this group"}".`,
+        { type: "member_removed", groupId, userId, url: buildAppUrl("groups") }
+      )
+    }
     await notifyUsers(
-      [targetUser],
-      `${group?.emoji ?? "👋"} Removed from ${group?.name ?? "group"}`,
-      `${getDisplayName(user)} removed you from "${group?.name ?? "this group"}".`,
-      {
-        type: "member_removed",
-        groupId,
-        userId,
-        url: buildAppUrl("groups"),
-      }
+      remainingMembers.map((m) => m.user),
+      `${group?.emoji ?? "👥"} Member removed from ${group?.name ?? "your group"}`,
+      user.id === userId
+        ? `${getDisplayName(user)} left "${group?.name ?? "this group"}".`
+        : `${getDisplayName(user)} removed ${targetUser ? getDisplayName(targetUser) : "a member"}.`,
+      { type: "member_removed", groupId, userId, url: buildAppUrl(`group/${groupId}`) },
+      [user.id]
     )
-  }
-
-  await notifyUsers(
-    remainingMembers.map((m) => m.user),
-    `${group?.emoji ?? "👥"} Member removed from ${group?.name ?? "your group"}`,
-    user.id === userId
-      ? `${getDisplayName(user)} left "${group?.name ?? "this group"}".`
-      : `${getDisplayName(user)} removed ${targetUser ? getDisplayName(targetUser) : "a member"}.`,
-    {
-      type: "member_removed",
-      groupId,
-      userId,
-      url: buildAppUrl(`group/${groupId}`),
-    },
-    [user.id]
-  )
+  })
 
   return Response.json({ success: true }, { status: 200 })
 }

@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { CURRENCY_RE, type JsonBody } from "@/lib/request"
 
 type TripWithDetails = Prisma.TripGetPayload<{
   include: {
@@ -72,9 +74,14 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { name, emoji, startDate, endDate, totalBudget, currency, groupId, categories } = await req.json()
+  if (!await checkRateLimit(`trips:${user.id}`, 20, 60 * 1000)) {
+    return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })
+  }
 
-  if (!name || !startDate || !endDate || !totalBudget) {
+  const { name, emoji, startDate, endDate, totalBudget, currency, groupId, categories } =
+    await req.json().catch(() => ({} as JsonBody))
+
+  if (typeof name !== "string" || !name.trim() || !startDate || !endDate || !totalBudget) {
     return Response.json({ error: "name, startDate, endDate and totalBudget required" }, { status: 400 })
   }
   if (typeof totalBudget !== "number" || !Number.isFinite(totalBudget) || totalBudget <= 0) {
@@ -87,6 +94,17 @@ export async function POST(req: NextRequest) {
   }
   if (end < start) {
     return Response.json({ error: "endDate must be on or after startDate" }, { status: 400 })
+  }
+  if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
+    return Response.json({ error: "Invalid currency" }, { status: 400 })
+  }
+  if (categories !== undefined && !Array.isArray(categories)) {
+    return Response.json({ error: "categories must be an array" }, { status: 400 })
+  }
+  for (const c of (categories ?? []) as { category: unknown; amount: unknown }[]) {
+    if (typeof c?.category !== "string" || !c.category.trim() || typeof c.amount !== "number" || !Number.isFinite(c.amount) || c.amount < 0) {
+      return Response.json({ error: "Each category needs a name and a non-negative amount" }, { status: 400 })
+    }
   }
   if (categories?.length) {
     const catTotal = (categories as { category: string; amount: number }[])
@@ -106,7 +124,7 @@ export async function POST(req: NextRequest) {
   const trip = await prisma.trip.create({
     data: {
       userId: user.id,
-      name,
+      name: name.trim(),
       emoji: emoji ?? "✈️",
       startDate: start,
       endDate: end,

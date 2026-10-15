@@ -1,29 +1,34 @@
 import { NextRequest } from "next/server"
-import * as jose from "jose"
 import * as crypto from "crypto"
 import { prisma } from "@/lib/prisma"
-import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { clientIp, readJson } from "@/lib/request"
+import { hashToken, REFRESH_TOKEN_TTL_MS, signAccessToken } from "@/lib/tokens"
 
-function hashToken(raw: string): string {
-  return crypto.createHash("sha256").update(raw).digest("hex")
-}
+// A rotated token replayed within this window is treated as a client retry (the app
+// was killed or lost the response before saving the new pair), not as theft.
+const REUSE_GRACE_MS = 60 * 1000
 
 // POST /api/auth/mobile-refresh
 // Body: { refreshToken: string }
 // Returns: { token, refreshToken } — new access + rotated refresh token
-// Token theft: if a used refresh token is replayed, revoke all tokens for that user
+// Token theft: if a used refresh token is replayed after the grace window, revoke all tokens for that user
 export async function POST(req: NextRequest) {
   try {
-    const { refreshToken: rawToken } = await req.json()
-    if (!rawToken) return Response.json({ error: "Refresh token required" }, { status: 400 })
+    if (!await checkRateLimit(`refresh:${clientIp(req)}`, 60, 15 * 60 * 1000)) {
+      return Response.json({ error: "Too many requests" }, { status: 429 })
+    }
+    const { refreshToken: rawToken } = await readJson<{ refreshToken: string }>(req)
+    if (typeof rawToken !== "string" || !rawToken) {
+      return Response.json({ error: "Refresh token required" }, { status: 400 })
+    }
 
     const hash = hashToken(rawToken)
     const stored = await prisma.mobileRefreshToken.findUnique({ where: { tokenHash: hash } })
 
     if (!stored) return Response.json({ error: "Invalid refresh token" }, { status: 401 })
 
-    // Token theft detection: already used → revoke all tokens for this user
-    if (stored.usedAt) {
+    if (stored.usedAt && Date.now() - stored.usedAt.getTime() > REUSE_GRACE_MS) {
       await prisma.mobileRefreshToken.deleteMany({ where: { userId: stored.userId } })
       return Response.json({ error: "Refresh token already used. Please sign in again." }, { status: 401 })
     }
@@ -35,26 +40,20 @@ export async function POST(req: NextRequest) {
 
     const user = await prisma.user.findUnique({
       where: { id: stored.userId },
-      select: { id: true, email: true, name: true, image: true },
+      select: { id: true, email: true, name: true },
     })
     if (!user) return Response.json({ error: "User not found" }, { status: 401 })
 
     // Rotate: mark old token as used, issue new pair
     const newRaw = crypto.randomBytes(64).toString("hex")
-    const newExpiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-
     await prisma.$transaction([
-      prisma.mobileRefreshToken.update({ where: { tokenHash: hash }, data: { usedAt: new Date() } }),
+      prisma.mobileRefreshToken.update({ where: { tokenHash: hash }, data: { usedAt: stored.usedAt ?? new Date() } }),
       prisma.mobileRefreshToken.create({
-        data: { userId: user.id, tokenHash: hashToken(newRaw), expiresAt: newExpiresAt },
+        data: { userId: user.id, tokenHash: hashToken(newRaw), expiresAt: new Date(Date.now() + REFRESH_TOKEN_TTL_MS) },
       }),
     ])
 
-    const newAccessToken = await new jose.SignJWT({ id: user.id, email: user.email, name: user.name })
-      .setProtectedHeader({ alg: "HS256" })
-      .setExpirationTime("7d")
-      .sign(MOBILE_JWT_SECRET)
-
+    const newAccessToken = await signAccessToken(user.id, user.email, user.name)
     return Response.json({ token: newAccessToken, refreshToken: newRaw })
   } catch (err) {
     console.error(err)

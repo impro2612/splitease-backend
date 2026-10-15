@@ -1,29 +1,18 @@
 import { NextRequest } from "next/server"
-import * as jose from "jose"
-import * as crypto from "crypto"
 import { OAuth2Client } from "google-auth-library"
 import { prisma } from "@/lib/prisma"
-import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
+import { normalizeEmail } from "@/lib/email"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { clientIp } from "@/lib/request"
+import { issueTokenPair } from "@/lib/tokens"
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
 
-async function issueTokenPair(userId: string, email: string, name: string | null) {
-  const accessToken = await new jose.SignJWT({ id: userId, email, name })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
-    .sign(MOBILE_JWT_SECRET)
-
-  const rawRefresh = crypto.randomBytes(64).toString("hex")
-  const tokenHash = crypto.createHash("sha256").update(rawRefresh).digest("hex")
-  const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000)
-
-  await prisma.mobileRefreshToken.create({ data: { userId, tokenHash, expiresAt } })
-
-  return { accessToken, refreshToken: rawRefresh }
-}
-
 export async function POST(req: NextRequest) {
   try {
+    if (!await checkRateLimit(`google-auth:${clientIp(req)}`, 20, 15 * 60 * 1000)) {
+      return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 })
+    }
     const { idToken, mode } = await req.json()
     if (!idToken) return Response.json({ error: "idToken required" }, { status: 400 })
 
@@ -35,9 +24,9 @@ export async function POST(req: NextRequest) {
         audience: process.env.GOOGLE_CLIENT_ID,
       })
       const p = ticket.getPayload()
-      if (!p?.sub || !p.email) throw new Error("Missing sub/email in token payload")
+      if (!p?.sub || !p.email || p.email_verified === false) throw new Error("Missing or unverified sub/email")
       googleId = p.sub
-      email = p.email
+      email = normalizeEmail(p.email)
       name = p.name
       image = p.picture
     } catch {

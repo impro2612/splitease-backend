@@ -11,16 +11,20 @@ async function fetchDirectRates(fromCurrency: string): Promise<Record<string, nu
     return cached.rates
   }
 
-  const res = await fetch(
+  // Primary CDN plus the project's documented fallback mirror
+  const sources = [
     `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${from}.min.json`,
-    { next: { revalidate: 3600 } }
-  )
-
-  if (!res.ok) {
-    throw new Error(`Exchange rate fetch failed for ${fromCurrency}: HTTP ${res.status}`)
+    `https://latest.currency-api.pages.dev/v1/currencies/${from}.min.json`,
+  ]
+  let data: Record<string, Record<string, number>> | null = null
+  for (const url of sources) {
+    try {
+      const res = await fetch(url, { next: { revalidate: 3600 }, signal: AbortSignal.timeout(5_000) })
+      if (res.ok) { data = await res.json(); break }
+    } catch { /* try next source */ }
   }
+  if (!data) throw new Error(`Exchange rate fetch failed for ${fromCurrency}`)
 
-  const data = await res.json()
   const rates: Record<string, number> = data[from]
 
   if (!rates) {
@@ -37,7 +41,7 @@ export async function convertDisplayAmount(
   toCurrency: string
 ): Promise<number> {
   if (!Number.isFinite(amount) || amount === 0) return 0
-  if (fromCurrency === toCurrency) return amount
+  if (fromCurrency.toUpperCase() === toCurrency.toUpperCase()) return amount
 
   const rates = await fetchDirectRates(fromCurrency)
   const directRate = rates[toCurrency.toLowerCase()]

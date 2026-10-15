@@ -11,7 +11,7 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id: groupId, userId: targetUserId } = await params
-  const { role } = await req.json()
+  const { role } = await req.json().catch(() => ({ role: undefined }))
 
   if (!["ADMIN", "MEMBER"].includes(role)) {
     return Response.json({ error: "Invalid role" }, { status: 400 })
@@ -34,6 +34,11 @@ export async function PATCH(
       return Response.json({ error: "Group must have at least one admin" }, { status: 400 })
     }
   }
+
+  const target = await prisma.groupMember.findUnique({
+    where: { groupId_userId: { groupId, userId: targetUserId } },
+  })
+  if (!target) return Response.json({ error: "Member not found" }, { status: 404 })
 
   const updated = await prisma.groupMember.update({
     where: { groupId_userId: { groupId, userId: targetUserId } },

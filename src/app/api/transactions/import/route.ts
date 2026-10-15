@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { parseCSV } from "@/lib/csv-parser"
 import { checkRateLimit } from "@/lib/rate-limit"
+import { insertNewTransactions } from "@/lib/persist-transactions"
 import {
   type AIRefineInput,
   batchRefineTransactionsWithAI,
@@ -10,6 +11,8 @@ import {
   makeHash,
   shouldRefineWithAI,
 } from "@/lib/categorize"
+
+const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 
 // POST /api/transactions/import
 // Body: multipart/form-data with "file" field (CSV or XLSX)
@@ -25,7 +28,10 @@ export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
     const file = formData.get("file") as File | null
-    if (!file) return Response.json({ error: "No file provided" }, { status: 400 })
+    if (!file || typeof file === "string") return Response.json({ error: "No file provided" }, { status: 400 })
+    if (file.size > MAX_IMPORT_BYTES) {
+      return Response.json({ error: "File too large. Maximum size is 5 MB." }, { status: 413 })
+    }
 
     const buffer = Buffer.from(await file.arrayBuffer())
     const { transactions, bank, skipped } = await parseCSV(buffer)
@@ -88,17 +94,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    let imported = 0
-    let duplicates = 0
-
-    for (const row of rows) {
-      try {
-        await prisma.personalTransaction.create({ data: row })
-        imported++
-      } catch {
-        duplicates++ // unique hash constraint = already exists
-      }
-    }
+    const { imported, duplicates } = await insertNewTransactions(rows)
 
     return Response.json({ imported, duplicates, skipped, bank })
   } catch (err) {

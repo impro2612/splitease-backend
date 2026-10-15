@@ -4,19 +4,15 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { normalizePhone } from "@/lib/phone"
 
-const PHONES_PER_REQUEST = 100
-const RATE_LIMIT_WINDOW_MS = 60_000
-const RATE_LIMIT_MAX = 20  // 20 × 100 = 2000 contacts per minute
+import { checkRateLimit } from "@/lib/rate-limit"
 
-// In-memory rate limiter: userId → [timestamp, ...] — replace with Redis in prod
-const rateLimitMap = new Map<string, number[]>()
-function isRateLimited(userId: string): boolean {
-  const now = Date.now()
-  const hits = (rateLimitMap.get(userId) ?? []).filter((t) => now - t < RATE_LIMIT_WINDOW_MS)
-  hits.push(now)
-  rateLimitMap.set(userId, hits)
-  return hits.length > RATE_LIMIT_MAX
-}
+const PHONES_PER_REQUEST = 100
+// Contacts sync runs at most daily; 10 batches/hour (1,000 numbers) covers a large
+// address book while keeping number→identity harvesting impractical.
+const RATE_LIMIT_MAX = 10
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000
+// Suffix matching (contacts saved without country code) needs enough digits to be unambiguous
+const MIN_LOCAL_DIGITS = 8
 
 // POST /api/users/lookup-phones
 // Body: { phones: string[] }
@@ -25,11 +21,11 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  if (isRateLimited(user.id)) {
+  if (!await checkRateLimit(`lookup-phones:${user.id}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS)) {
     return Response.json({ error: "Too many requests. Please wait before retrying." }, { status: 429 })
   }
 
-  const { phones } = await req.json()
+  const { phones } = await req.json().catch(() => ({ phones: null }))
   if (!Array.isArray(phones) || phones.length === 0) return Response.json({})
 
   const limited = phones
@@ -42,7 +38,7 @@ export async function POST(req: NextRequest) {
   // Numbers with country code (+...) → exact match
   // Numbers without + → suffix match (contact saved without country code)
   const withCC = limited.filter((p) => p.startsWith("+"))
-  const localOnly = limited.filter((p) => !p.startsWith("+") && p.length >= 6)
+  const localOnly = limited.filter((p) => !p.startsWith("+") && p.length >= MIN_LOCAL_DIGITS)
 
   const orConditions: Prisma.UserWhereInput[] = []
   if (withCC.length > 0) orConditions.push({ phoneNormalized: { in: withCC } })

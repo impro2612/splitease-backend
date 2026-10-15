@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { parseMonth } from "@/lib/month"
+import { CATEGORIES } from "@/lib/categorize"
 
 function txToApi(t: { amount: number; [key: string]: unknown }) {
   return { ...t, amount: t.amount / 100 }
@@ -15,20 +17,28 @@ export async function GET(req: NextRequest) {
   const month    = searchParams.get("month")    // "YYYY-MM"
   const category = searchParams.get("category")
   const type     = searchParams.get("type")
-  const page     = parseInt(searchParams.get("page") ?? "1")
+  const page     = Math.min(Math.max(parseInt(searchParams.get("page") ?? "1") || 1, 1), 1000)
   const limit    = 50
 
   const where: Record<string, unknown> = { userId: user.id }
 
   if (month) {
-    const [y, m] = month.split("-").map(Number)
+    const parsed = parseMonth(month)
+    if (!parsed) return Response.json({ error: "month must be YYYY-MM" }, { status: 400 })
+    const { y, m } = parsed
     where.date = {
       gte: new Date(y, m - 1, 1),
       lt:  new Date(y, m, 1),
     }
   }
-  if (category) where.category = category
-  if (type)     where.type = type
+  if (category) {
+    if (!(CATEGORIES as readonly string[]).includes(category)) return Response.json({ error: "Invalid category" }, { status: 400 })
+    where.category = category
+  }
+  if (type) {
+    if (type !== "debit" && type !== "credit") return Response.json({ error: "Invalid type" }, { status: 400 })
+    where.type = type
+  }
 
   const [transactions, total] = await Promise.all([
     prisma.personalTransaction.findMany({

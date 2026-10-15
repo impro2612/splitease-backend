@@ -1,51 +1,38 @@
 import { NextRequest } from "next/server"
 import bcrypt from "bcryptjs"
-import * as jose from "jose"
-import * as crypto from "crypto"
 import { prisma } from "@/lib/prisma"
-import { MOBILE_JWT_SECRET } from "@/lib/jwt-secret"
 import { checkRateLimit } from "@/lib/rate-limit"
-
-function hashToken(raw: string): string {
-  return crypto.createHash("sha256").update(raw).digest("hex")
-}
-
-async function issueTokenPair(userId: string, email: string, name: string | null) {
-  const accessToken = await new jose.SignJWT({ id: userId, email, name })
-    .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("7d")
-    .sign(MOBILE_JWT_SECRET)
-
-  // 64-byte random refresh token — never stored plain, only its SHA-256 hash
-  const rawRefresh = crypto.randomBytes(64).toString("hex")
-  const expiresAt = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000) // 60 days
-
-  await prisma.mobileRefreshToken.create({
-    data: { userId, tokenHash: hashToken(rawRefresh), expiresAt },
-  })
-
-  return { accessToken, refreshToken: rawRefresh }
-}
+import { normalizeEmail } from "@/lib/email"
+import { clientIp, readJson } from "@/lib/request"
+import { issueTokenPair } from "@/lib/tokens"
 
 // Warm-up ping — fires a cheap Prisma query so the DB connection is open
-// by the time the user submits credentials.
-export async function GET() {
+// by the time the user submits credentials. Rate-limited so it can't be used
+// as a free lever to hammer the database.
+export async function GET(req: NextRequest) {
+  if (!await checkRateLimit(`warmup:${clientIp(req)}`, 30, 60 * 1000)) {
+    return Response.json({ ok: false }, { status: 429 })
+  }
   await prisma.$queryRaw`SELECT 1`
   return Response.json({ ok: true }, { status: 200 })
 }
 
 export async function POST(req: NextRequest) {
   try {
-    const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "unknown"
+    const ip = clientIp(req)
     // 10 attempts per 15 minutes per IP — brute-force protection
     if (!await checkRateLimit(`signin:${ip}`, 10, 15 * 60 * 1000)) {
       return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
     }
 
-    const { email, password } = await req.json()
-
-    if (!email || !password) {
+    const { email: rawEmail, password } = await readJson<{ email: string; password: string }>(req)
+    const email = normalizeEmail(rawEmail)
+    if (!email || typeof password !== "string" || !password) {
       return Response.json({ error: "Email and password required" }, { status: 400 })
+    }
+    // Per-account limit too, so rotating IPs can't brute-force one user
+    if (!await checkRateLimit(`signin-email:${email}`, 20, 60 * 60 * 1000)) {
+      return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
     }
 
     const user = await prisma.user.findUnique({ where: { email } })
@@ -58,7 +45,9 @@ export async function POST(req: NextRequest) {
       return Response.json({ error: "Invalid credentials" }, { status: 401 })
     }
 
-    // Silently re-hash if stored at a higher cost so future logins are faster
+    // Deliberate trade-off: hashes created at a higher bcrypt cost are re-hashed at
+    // cost 10 (OWASP's minimum) because serverless cold starts made cost-12 logins
+    // take several seconds. Cost 10 is still ~100 ms/guess on modern hardware.
     const storedCost = parseInt(user.password.split("$")[2] ?? "10", 10)
     if (storedCost > 10) {
       const rehashed = await bcrypt.hash(password, 10)

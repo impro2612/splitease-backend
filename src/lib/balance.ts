@@ -48,12 +48,13 @@ export function buildBalanceMap(
     }
   }
 
+  // A settlement is money moving from → to, i.e. the receiver now "owes" it back.
+  // Recording it as a reverse debt (instead of clamping the forward debt at 0) keeps
+  // the pairwise view consistent with getNetPerPerson: cross-pair settlements made
+  // under Smart Debts and any overpayment are preserved rather than silently dropped.
   for (const s of settlements) {
-    init(s.fromUserId, s.toUserId)
-    balances[s.fromUserId][s.toUserId] = Math.max(
-      0,
-      (balances[s.fromUserId]?.[s.toUserId] ?? 0) - toCents(s.amount, amountsAreInCents)
-    )
+    init(s.toUserId, s.fromUserId)
+    balances[s.toUserId][s.fromUserId] += toCents(s.amount, amountsAreInCents)
   }
 
   return balances

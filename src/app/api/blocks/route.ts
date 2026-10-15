@@ -22,10 +22,12 @@ export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
-  const { blockedId } = await req.json()
-  if (!blockedId || blockedId === user.id) {
+  const { blockedId } = await req.json().catch(() => ({ blockedId: undefined }))
+  if (typeof blockedId !== "string" || !blockedId || blockedId === user.id) {
     return Response.json({ error: "Invalid user" }, { status: 400 })
   }
+  const target = await prisma.user.findUnique({ where: { id: blockedId }, select: { id: true } })
+  if (!target) return Response.json({ error: "User not found" }, { status: 404 })
 
   // Remove any existing friendship / pending requests between the two
   await prisma.friend.updateMany({

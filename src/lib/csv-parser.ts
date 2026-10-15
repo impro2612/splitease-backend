@@ -50,11 +50,15 @@ function findCol(headers: string[], target: string): number {
   return headers.findIndex((h) => normalize(h).includes(t))
 }
 
+/** Amount cell → positive cents. Handles "1,234.50", "1,234.50 Dr", "(1,234.50)" and "-1,234.50". */
 function parseAmt(val: string | number | Date | undefined): number {
-  if (!val || val === "" || val === "-" || val === "0.00") return 0
+  if (val === undefined || val === null || val === "" || val === "-") return 0
   if (val instanceof Date) return 0
-  const n = parseFloat(String(val).replace(/,/g, "").trim())
-  return isNaN(n) ? 0 : Math.round(n * 100)
+  const n = typeof val === "number"
+    ? val
+    : parseFloat(String(val).replace(/[,\s]/g, "").replace(/^\((.*)\)$/, "$1").replace(/[^\d.\-]/g, ""))
+  // Debit/credit are already separate columns, so the sign carries no extra meaning
+  return Number.isFinite(n) ? Math.round(Math.abs(n) * 100) : 0
 }
 
 function parseDate(val: string | number | Date): Date | null {
@@ -90,23 +94,33 @@ function cellToRaw(v: ExcelJS.CellValue): string | number | Date {
   return ""
 }
 
+/** RFC-4180 style parser: quoted fields, "" escapes and newlines inside quotes. */
 function parseCSVText(buffer: Buffer): (string | number | Date)[][] {
-  const text = buffer.toString("utf-8").replace(/^﻿/, "") // strip BOM
-  const delimiter = text.indexOf("\t") !== -1 && !text.includes(",") ? "\t" : ","
+  const text = buffer.toString("utf-8").replace(/^\uFEFF/, "") // strip BOM
+  const firstLine = text.slice(0, text.search(/\r?\n/) >>> 0)
+  const delimiter = firstLine.includes("\t") && !firstLine.includes(",") ? "\t" : ","
   const rows: string[][] = []
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue
-    const fields: string[] = []
-    let field = "", inQ = false
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i]
-      if (ch === '"') inQ = !inQ
-      else if (ch === delimiter && !inQ) { fields.push(field.trim()); field = "" }
-      else field += ch
-    }
-    fields.push(field.trim())
-    rows.push(fields)
+  let row: string[] = []
+  let field = ""
+  let inQ = false
+  const endRow = () => {
+    row.push(field.trim())
+    if (row.some((c) => c !== "")) rows.push(row)
+    row = []
+    field = ""
   }
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i]
+    if (inQ) {
+      if (ch === '"' && text[i + 1] === '"') { field += '"'; i++ }
+      else if (ch === '"') inQ = false
+      else field += ch
+    } else if (ch === '"') inQ = true
+    else if (ch === delimiter) { row.push(field.trim()); field = "" }
+    else if (ch === "\n") endRow()
+    else if (ch !== "\r") field += ch
+  }
+  if (field !== "" || row.length) endRow()
   return rows
 }
 

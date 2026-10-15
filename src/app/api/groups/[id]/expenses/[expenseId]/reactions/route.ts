@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { isSingleEmoji } from "@/lib/request"
 
 export async function POST(
   req: NextRequest,
@@ -11,9 +13,13 @@ export async function POST(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id: groupId, expenseId } = await params
-  const { emoji } = await req.json()
+  const { emoji } = await req.json().catch(() => ({ emoji: undefined }))
 
-  if (!emoji || typeof emoji !== "string" || [...emoji].length > 2) {
+  if (!await checkRateLimit(`reactions:${user.id}`, 60, 60 * 1000)) {
+    return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })
+  }
+  // One emoji grapheme — accepts ZWJ families, skin tones and flags
+  if (!isSingleEmoji(emoji)) {
     return Response.json({ error: "Invalid emoji" }, { status: 400 })
   }
 

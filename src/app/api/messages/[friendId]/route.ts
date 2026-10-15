@@ -27,7 +27,7 @@ export async function GET(
 
   const url = new URL(req.url)
   const after = url.searchParams.get("after") // ISO date string for delta sync
-  const limit = Math.min(parseInt(url.searchParams.get("limit") ?? "50"), 100)
+  const limit = Math.min(Math.max(parseInt(url.searchParams.get("limit") ?? "50") || 50, 1), 100)
   const before = url.searchParams.get("before") // clientId cursor for pagination
 
   const whereBase = {
@@ -40,12 +40,12 @@ export async function GET(
   const messages = await prisma.message.findMany({
     where: {
       ...whereBase,
-      ...(after ? { createdAt: { gt: new Date(after) } } : {}),
+      ...(after && !isNaN(new Date(after).getTime()) ? { createdAt: { gt: new Date(after) } } : {}),
       ...(before
         ? {
             createdAt: {
               lt: await prisma.message
-                .findUnique({ where: { clientId: before } })
+                .findFirst({ where: { clientId: before, ...whereBase } })
                 .then((m) => m?.createdAt ?? new Date()),
             },
           }

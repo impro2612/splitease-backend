@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { logActivity } from "@/lib/activity"
+import { geocode } from "@/lib/geocode"
+import { readJson, type JsonBody } from "@/lib/request"
 
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
 function expenseToApi(e: ExpenseRow) {
@@ -69,7 +71,7 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const { name, description, emoji, color, currency, location, lat, lng, startDate, endDate } = await req.json()
+  const { name, description, emoji, color, currency, location, lat, lng, startDate, endDate } = await readJson<JsonBody>(req)
 
   const member = await prisma.groupMember.findUnique({
     where: { groupId_userId: { groupId: id, userId: user.id } },
@@ -112,33 +114,36 @@ export async function PATCH(
     return Response.json({ error: "endDate must be on or after startDate" }, { status: 400 })
   }
 
-  let patchLat = lat
-  let patchLng = lng
-  if (location !== undefined && location?.trim() && patchLat === null) {
-    try {
-      const geo = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location.trim())}&format=json&limit=1`,
-        { headers: { "User-Agent": "SplitEase/1.0" } }
-      )
-      const geoData = await geo.json()
-      if (geoData[0]) {
-        patchLat = parseFloat(geoData[0].lat)
-        patchLng = parseFloat(geoData[0].lon)
-      }
-    } catch { /* geocoding failure is non-fatal */ }
+  if (name !== undefined && (typeof name !== "string" || !name.trim() || name.trim().length > 100)) {
+    return Response.json({ error: "Invalid name" }, { status: 400 })
+  }
+
+  // Coordinates follow the location: a changed location without coordinates is
+  // re-geocoded, and clearing the location clears the map pin.
+  let locationData: { location?: string | null; lat?: number | null; lng?: number | null } = {}
+  if (location !== undefined) {
+    const place = typeof location === "string" && location.trim() ? location.trim() : null
+    let pLat = typeof lat === "number" && Number.isFinite(lat) ? lat : null
+    let pLng = typeof lng === "number" && Number.isFinite(lng) ? lng : null
+    if (place && (pLat === null || pLng === null)) {
+      const geo = await geocode(place)
+      pLat = geo?.lat ?? null
+      pLng = geo?.lng ?? null
+    }
+    locationData = { location: place, lat: place ? pLat : null, lng: place ? pLng : null }
+  } else if (typeof lat === "number" && typeof lng === "number") {
+    locationData = { lat, lng }
   }
 
   const group = await prisma.group.update({
     where: { id },
     data: {
-      ...(name !== undefined && { name }),
+      ...(name !== undefined && { name: name.trim() }),
       ...(description !== undefined && { description }),
       ...(emoji !== undefined && { emoji }),
       ...(color !== undefined && { color }),
       ...(currency !== undefined && { currency }),
-      ...(location !== undefined && { location: location?.trim() || null }),
-      ...(lat !== undefined && { lat: patchLat }),
-      ...(lng !== undefined && { lng: patchLng }),
+      ...locationData,
       ...(startDate !== undefined && { startDate: patchStartDate }),
       ...(endDate !== undefined && { endDate: patchEndDate }),
     },

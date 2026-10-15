@@ -5,6 +5,7 @@ import CredentialsProvider from "next-auth/providers/credentials"
 import GoogleProvider from "next-auth/providers/google"
 import bcrypt from "bcryptjs"
 import { prisma } from "./prisma"
+import { normalizeEmail } from "./email"
 
 // How often to re-validate the password anchor against the DB (5 minutes)
 const SESSION_CHECK_INTERVAL_MS = 5 * 60 * 1000
@@ -26,7 +27,7 @@ export const authOptions = {
         if (!credentials?.email || !credentials?.password) return null
 
         const user = await prisma.user.findUnique({
-          where: { email: credentials.email as string },
+          where: { email: normalizeEmail(credentials.email) },
         })
 
         if (!user || !user.password) return null

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { parseMonth } from "@/lib/month"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -8,8 +9,8 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const month = searchParams.get("month")?.trim()
-  if (!month) {
-    return Response.json({ error: "Month is required" }, { status: 400 })
+  if (!month || !parseMonth(month)) {
+    return Response.json({ error: "month must be YYYY-MM" }, { status: 400 })
   }
 
   const suggestion = await prisma.personalSuggestion.findUnique({

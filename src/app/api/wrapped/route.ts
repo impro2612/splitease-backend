@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { buildBalanceMap, getUserTotals } from "@/lib/balance"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -25,7 +26,7 @@ export async function GET(req: NextRequest) {
         orderBy: { date: "asc" },
       },
       settlements: {
-        select: { fromUserId: true, toUserId: true, amount: true, currency: true },
+        select: { fromUserId: true, toUserId: true, amount: true, currency: true, createdAt: true },
       },
     },
   })
@@ -36,22 +37,31 @@ export async function GET(req: NextRequest) {
     ...groups.filter(g => g.startDate).map(g => new Date(g.startDate!).getFullYear()),
   ]
   const availableYears = [...new Set(allYears)].sort((a, b) => b - a)
-  const targetYear = yearParam ? parseInt(yearParam) : (availableYears[0] ?? new Date().getFullYear())
+  const parsedYear = yearParam ? parseInt(yearParam) : NaN
+  const targetYear = Number.isInteger(parsedYear) && parsedYear > 2000 && parsedYear < 2100
+    ? parsedYear
+    : (availableYears[0] ?? new Date().getFullYear())
+
+  // Money can only be added up within one currency. The recap uses the currency the
+  // user spent in most this year; expenses/settlements in other currencies are left out
+  // of the recap rather than being summed as if they were the same money.
+  const countByCurrency: Record<string, number> = {}
+  for (const g of groups) for (const e of g.expenses) {
+    if (new Date(e.date).getFullYear() === targetYear) countByCurrency[e.currency] = (countByCurrency[e.currency] ?? 0) + 1
+  }
+  const currency = Object.entries(countByCurrency).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR"
 
   const yearGroups = groups
     .map(g => ({
       ...g,
-      // Only keep expenses for the target year that match this group's currency
-      expenses: g.expenses.filter(
-        e => new Date(e.date).getFullYear() === targetYear && (e.currency ?? g.currency) === g.currency
-      ),
-      // Only keep settlements for this group's currency
-      settlements: g.settlements.filter(s => (s.currency ?? g.currency) === g.currency),
+      expenses: g.expenses.filter(e => new Date(e.date).getFullYear() === targetYear && e.currency === currency),
+      // Settlements are scoped to the same year and currency as the expenses
+      settlements: g.settlements.filter(s => new Date(s.createdAt).getFullYear() === targetYear && s.currency === currency),
     }))
     .filter(g => g.expenses.length > 0)
 
   if (yearGroups.length === 0) {
-    return Response.json({ year: targetYear, availableYears, empty: true })
+    return Response.json({ year: targetYear, availableYears, currency, empty: true })
   }
 
   // Total groups active this year
@@ -98,23 +108,14 @@ export async function GET(req: NextRequest) {
   }))
   const mostGenerous = Object.values(paidMap).sort((a, b) => b.total - a.total)[0] ?? null
 
-  // Net balance: positive = others owe user, negative = user owes others
+  // Year's net position from the shared balance engine (expenses minus settlements, per group)
   let owedToUser = 0
   let userOwes = 0
-  yearGroups.forEach(g => {
-    g.expenses.forEach(e => {
-      if (e.paidById === user.id) {
-        e.splits.forEach(s => { if (s.userId !== user.id && !s.paid) owedToUser += s.amount })
-      } else {
-        const split = e.splits.find(s => s.userId === user.id)
-        if (split && !split.paid) userOwes += split.amount
-      }
-    })
-    g.settlements.forEach(s => {
-      if (s.fromUserId === user.id) userOwes = Math.max(0, userOwes - s.amount)
-      if (s.toUserId === user.id) owedToUser = Math.max(0, owedToUser - s.amount)
-    })
-  })
+  for (const g of yearGroups) {
+    const { oweCents, owedCents } = getUserTotals(buildBalanceMap(g.expenses, g.settlements, true), user.id)
+    owedToUser += owedCents
+    userOwes += oweCents
+  }
 
   // Top friends by number of shared groups
   const friendGroupCount: Record<string, { name: string; count: number }> = {}
@@ -133,6 +134,7 @@ export async function GET(req: NextRequest) {
   return Response.json({
     year: targetYear,
     availableYears,
+    currency,
     empty: false,
     totalGroups,
     totalSpent: grandTotal,   // cents

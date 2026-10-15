@@ -1,8 +1,10 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
+import { CURRENCY_RE, parseOptionalDate, readJson, type JsonBody } from "@/lib/request"
+import { buildExactSplits } from "@/lib/splits"
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
 
@@ -33,11 +35,23 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   }
 
   try {
-    const { description, amount, category, paidById, date, currency, splitType: reqSplitType, splits: reqSplits } = await req.json()
+    const { description, amount, category, paidById, date, currency, splitType: reqSplitType, splits: reqSplits } =
+      await readJson<JsonBody>(req)
 
-    const numAmount = amount !== undefined ? parseFloat(amount) : undefined
-    if (numAmount !== undefined && (isNaN(numAmount) || numAmount <= 0)) {
+    const numAmount = amount !== undefined ? (typeof amount === "number" ? amount : parseFloat(amount)) : undefined
+    if (numAmount !== undefined && (!Number.isFinite(numAmount) || numAmount <= 0 || numAmount > 1_000_000)) {
       return Response.json({ error: "Invalid amount" }, { status: 400 })
+    }
+    if (description !== undefined && (typeof description !== "string" || !description.trim() || description.trim().length > 200)) {
+      return Response.json({ error: "Invalid description" }, { status: 400 })
+    }
+    const parsedDate = parseOptionalDate(date)
+    if (date !== undefined && !parsedDate) return Response.json({ error: "Invalid date" }, { status: 400 })
+    if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
+      return Response.json({ error: "Invalid currency" }, { status: 400 })
+    }
+    if (reqSplitType !== undefined && !["EQUAL", "EXACT", "PERCENTAGE"].includes(reqSplitType)) {
+      return Response.json({ error: "Invalid split type" }, { status: 400 })
     }
 
     const newAmountCents = numAmount !== undefined ? Math.round(numAmount * 100) : expense.amount
@@ -58,23 +72,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }),
     ])
 
+    const memberIdSet = new Set(groupMembers.map((m) => m.userId))
+    if (!memberIdSet.has(newPaidById)) {
+      return Response.json({ error: "Payer must be a member of this group" }, { status: 400 })
+    }
+
     let newSplitData: { userId: string; amount: number; paid: boolean }[]
 
     if (reqSplits && Array.isArray(reqSplits) && reqSplits.length > 0) {
-      // Explicit splits provided by client — use them directly
-      const rawData = (reqSplits as { userId: string; amount: number }[]).map((s) => ({
-        userId: s.userId,
-        amount: Math.round(s.amount * 100),
-        paid: s.userId === newPaidById,
-      }))
-      // Fix any rounding so totals always sum to newAmountCents
-      const rawSum = rawData.reduce((a, b) => a + b.amount, 0)
-      let remainder = newAmountCents - rawSum
-      newSplitData = rawData.map((s) => {
-        const extra = remainder > 0 ? 1 : remainder < 0 ? -1 : 0
-        if (remainder !== 0) remainder -= extra
-        return { ...s, amount: s.amount + extra }
-      })
+      // Explicit splits — same validation as creation (members only, no negatives,
+      // no duplicates, sum must match the amount)
+      const built = buildExactSplits(reqSplits, newAmountCents, newPaidById, memberIdSet)
+      if (!built.ok) return Response.json({ error: built.error }, { status: 400 })
+      newSplitData = built.splits
     } else {
       // No explicit splits — fall back to proportional scaling / paid-flag update
       const amountChanged = newAmountCents !== expense.amount
@@ -84,9 +94,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         const updated = await prisma.expense.update({
           where: { id: expenseId },
           data: {
-            ...(description !== undefined && { description }),
+            ...(description !== undefined && { description: description.trim() }),
             ...(category !== undefined && { category }),
-            ...(date !== undefined && { date: new Date(date) }),
+            ...(parsedDate && { date: parsedDate }),
             ...(currency !== undefined && { currency }),
           },
           include: {
@@ -97,13 +107,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           },
         })
         await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
-        await notifyUsers(
+        after(() => notifyUsers(
           groupMembers.map((m) => m.user),
           `${groupInfo?.emoji ?? "✏️"} Expense updated in ${groupInfo?.name ?? "your group"}`,
           `${getDisplayName(user)} updated "${updated.description}"`,
           { type: "expense_updated", groupId, expenseId: updated.id, url: buildAppUrl(`group/${groupId}`) },
           [user.id]
-        )
+        ))
         logActivity({
           type: "expense_edited",
           actorId: user.id,
@@ -149,12 +159,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return tx.expense.update({
         where: { id: expenseId },
         data: {
-          ...(description !== undefined && { description }),
+          ...(description !== undefined && { description: description.trim() }),
           ...(newAmountCents !== expense.amount && { amount: newAmountCents }),
           ...(reqSplitType !== undefined && { splitType: reqSplitType }),
           ...(category !== undefined && { category }),
           ...(paidById !== undefined && { paidById }),
-          ...(date !== undefined && { date: new Date(date) }),
+          ...(parsedDate && { date: parsedDate }),
           ...(currency !== undefined && { currency }),
           splits: { create: newSplitData },
         },
@@ -168,7 +178,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     })
 
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
-    await notifyUsers(
+    after(() => notifyUsers(
       groupMembers.map((m) => m.user),
       `${groupInfo?.emoji ?? "✏️"} Expense updated in ${groupInfo?.name ?? "your group"}`,
       `${getDisplayName(user)} updated "${updated.description}"`,
@@ -179,7 +189,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         url: buildAppUrl(`group/${groupId}`),
       },
       [user.id]
-    )
+    ))
     const oldPaidByMember = groupMembers.find(m => m.userId === expense.paidById)
     const newPaidByMember = groupMembers.find(m => m.userId === updated.paidById)
     logActivity({
@@ -245,7 +255,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
 
   await prisma.expense.delete({ where: { id: expenseId } })
   await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
-  await notifyUsers(
+  after(() => notifyUsers(
     groupMembers.map((m) => m.user),
     `${groupInfo?.emoji ?? "🗑️"} Expense removed in ${groupInfo?.name ?? "your group"}`,
     `${getDisplayName(user)} removed "${expense.description}"`,
@@ -256,7 +266,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       url: buildAppUrl(`group/${groupId}`),
     },
     [user.id]
-  )
+  ))
   logActivity({
     type: "expense_deleted",
     actorId: user.id,

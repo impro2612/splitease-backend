@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
+import { currentMonth, monthKey, parseMonth } from "@/lib/month"
 
 // GET /api/transactions/summary?month=2026-04
 export async function GET(req: NextRequest) {
@@ -11,10 +12,9 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const month = searchParams.get("month") // "YYYY-MM", defaults to current month
 
-  const now = new Date()
-  const [y, m] = month
-    ? month.split("-").map(Number)
-    : [now.getFullYear(), now.getMonth() + 1]
+  const parsed = month ? parseMonth(month) : currentMonth()
+  if (!parsed) return Response.json({ error: "month must be YYYY-MM" }, { status: 400 })
+  const { y, m } = parsed
 
   const start = new Date(y, m - 1, 1)
   const end   = new Date(y, m, 1)
@@ -46,26 +46,29 @@ export async function GET(req: NextRequest) {
     .map((c) => ({ category: c, amount: (byCat[c] ?? 0) / 100 }))
     .sort((a, b) => b.amount - a.amount)
 
-  // Last 6 months trend
+  // Last 6 months trend — one query for the whole window instead of six
+  const trendStart = new Date(y, m - 6, 1)
+  const trendTxns = await prisma.personalTransaction.findMany({
+    where: { userId: user.id, date: { gte: trendStart, lt: end } },
+    select: { amount: true, type: true, date: true },
+  })
   const monthlyTrend: { month: string; income: number; expense: number }[] = []
   for (let i = 5; i >= 0; i--) {
     const d = new Date(y, m - 1 - i, 1)
-    const ms = new Date(d.getFullYear(), d.getMonth(), 1)
-    const me = new Date(d.getFullYear(), d.getMonth() + 1, 1)
-    const label = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
-    const txns = await prisma.personalTransaction.findMany({
-      where: { userId: user.id, date: { gte: ms, lt: me } },
-      select: { amount: true, type: true },
-    })
-    monthlyTrend.push({
-      month: label,
-      income: txns.filter((t) => t.type === "credit").reduce((s, t) => s + t.amount, 0) / 100,
-      expense: txns.filter((t) => t.type === "debit").reduce((s, t) => s + t.amount, 0) / 100,
-    })
+    const label = monthKey(d.getFullYear(), d.getMonth() + 1)
+    monthlyTrend.push({ month: label, income: 0, expense: 0 })
   }
+  const byLabel = new Map(monthlyTrend.map((t) => [t.month, t]))
+  for (const t of trendTxns) {
+    const bucket = byLabel.get(monthKey(t.date.getFullYear(), t.date.getMonth() + 1))
+    if (!bucket) continue
+    if (t.type === "credit") bucket.income += t.amount
+    else if (t.type === "debit") bucket.expense += t.amount
+  }
+  for (const t of monthlyTrend) { t.income /= 100; t.expense /= 100 }
 
   return Response.json({
-    month: `${y}-${String(m).padStart(2, "0")}`,
+    month: monthKey(y, m),
     totalIncome: totalIncome / 100,
     totalExpense: totalExpense / 100,
     netSavings: (totalIncome - totalExpense) / 100,

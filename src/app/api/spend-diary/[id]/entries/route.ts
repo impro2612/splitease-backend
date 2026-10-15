@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { CURRENCY_RE, parseOptionalDate, type JsonBody } from "@/lib/request"
 
 // GET /api/spend-diary/[id]/entries — list entries for a diary
 export async function GET(
@@ -34,10 +36,18 @@ export async function POST(
   const diary = await prisma.spendDiary.findFirst({ where: { id, userId: user.id } })
   if (!diary) return Response.json({ error: "Not found" }, { status: 404 })
 
-  const { title, amount, currency, date } = await req.json()
-  if (!title?.trim() || typeof amount !== "number" || amount <= 0) {
+  if (!await checkRateLimit(`spend-entry:${user.id}`, 60, 60 * 1000)) {
+    return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })
+  }
+  const { title, amount, currency, date } = await req.json().catch(() => ({} as JsonBody))
+  if (typeof title !== "string" || !title.trim() || title.length > 200 || typeof amount !== "number" || !Number.isFinite(amount) || amount <= 0 || amount > 10_000_000) {
     return Response.json({ error: "title and positive amount required" }, { status: 400 })
   }
+  if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
+    return Response.json({ error: "Invalid currency" }, { status: 400 })
+  }
+  const entryDate = parseOptionalDate(date)
+  if (entryDate === undefined) return Response.json({ error: "Invalid date" }, { status: 400 })
 
   const entry = await prisma.spendEntry.create({
     data: {
@@ -45,7 +55,7 @@ export async function POST(
       title: title.trim(),
       amount: Math.round(amount * 100),
       currency: currency ?? "INR",
-      date: date ? new Date(date) : new Date(),
+      date: entryDate ?? new Date(),
     },
   })
 

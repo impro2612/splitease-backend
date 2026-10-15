@@ -6,6 +6,7 @@ import { Plus, Users, Receipt, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { formatCurrency, getInitials } from "@/lib/utils"
+import { getNetPerPerson } from "@/lib/balance"
 
 export default async function GroupsPage() {
   const session = await getServerSession(authOptions)
@@ -26,23 +27,27 @@ export default async function GroupsPage() {
     orderBy: { updatedAt: "desc" },
   })
 
-  // Calculate balance per group for current user (DB amounts are in cents, divide by 100 for display)
+  // Balance per group for the current user — includes settlements, kept per currency
   const myId = session!.user!.id as string
-  function getGroupBalance(group: typeof groups[0]) {
-    let owedCents = 0
-    let owesCents = 0
-    for (const expense of group.expenses) {
-      const mySplit = expense.splits.find((s) => s.userId === myId)
-      if (!mySplit) continue
-      if (expense.paidById === myId) {
-        for (const split of expense.splits) {
-          if (split.userId !== myId && !split.paid) owedCents += split.amount
-        }
-      } else if (!mySplit.paid) {
-        owesCents += mySplit.amount
-      }
+  const allSettlements = await prisma.settlement.findMany({
+    where: { groupId: { in: groups.map((g) => g.id) } },
+  })
+  function getGroupBalance(group: typeof groups[0]): { label: string; sign: number } {
+    const byCur = new Map<string, { exp: typeof group.expenses; set: typeof allSettlements }>()
+    for (const e of group.expenses) {
+      if (!byCur.has(e.currency)) byCur.set(e.currency, { exp: [], set: [] })
+      byCur.get(e.currency)!.exp.push(e)
     }
-    return (owedCents - owesCents) / 100
+    for (const st of allSettlements) if (st.groupId === group.id) byCur.get(st.currency)?.set.push(st)
+    const parts: string[] = []
+    let sign = 0
+    for (const [cur, { exp, set }] of byCur) {
+      const net = (getNetPerPerson(exp, set, true).get(myId) ?? 0) / 100
+      if (net === 0) continue
+      sign = sign || Math.sign(net)
+      parts.push(`${net > 0 ? "+" : "-"}${formatCurrency(Math.abs(net), cur)}`)
+    }
+    return { label: parts.join(" · "), sign }
   }
 
   return (
@@ -110,8 +115,8 @@ export default async function GroupsPage() {
                         {group._count.expenses} expenses
                       </span>
                     </div>
-                    <div className={`text-sm font-semibold ${balance > 0 ? "text-emerald-400" : balance < 0 ? "text-rose-400" : "text-slate-400"}`}>
-                      {balance > 0 ? `+${formatCurrency(balance)}` : balance < 0 ? formatCurrency(balance) : "settled up"}
+                    <div className={`text-sm font-semibold ${balance.sign > 0 ? "text-emerald-400" : balance.sign < 0 ? "text-rose-400" : "text-slate-400"}`}>
+                      {balance.label || "settled up"}
                     </div>
                   </div>
 

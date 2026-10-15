@@ -13,11 +13,17 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const { action } = await req.json()
+  const { action } = await req.json().catch(() => ({ action: undefined }))
+  if (action !== "accept" && action !== "reject") {
+    return Response.json({ error: "action must be 'accept' or 'reject'" }, { status: 400 })
+  }
 
   const friend = await prisma.friend.findUnique({ where: { id } })
   if (!friend || friend.addresseeId !== user.id) {
     return Response.json({ error: "Not authorized" }, { status: 403 })
+  }
+  if (friend.status !== "PENDING") {
+    return Response.json({ error: "This request is no longer pending" }, { status: 409 })
   }
 
   if (action === "accept") {

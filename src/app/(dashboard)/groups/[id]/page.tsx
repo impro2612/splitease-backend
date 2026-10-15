@@ -18,15 +18,15 @@ type User = { id: string; name: string | null; email: string; image: string | nu
 type Split = { id: string; userId: string; amount: number; paid: boolean; user: User }
 type Expense = {
   id: string; description: string; amount: number; category: string
-  paidById: string; paidBy: User; date: string; splits: Split[]
+  paidById: string; paidBy: User; date: string; splits: Split[]; currency?: string
 }
 type Member = { id: string; userId: string; role: string; user: User }
-type Settlement = { id: string; fromUser: User; toUser: User; amount: number; createdAt: string }
+type Settlement = { id: string; fromUser: User; toUser: User; amount: number; currency?: string; createdAt: string }
 type Group = {
-  id: string; name: string; description: string | null; color: string; emoji: string
+  id: string; name: string; description: string | null; color: string; emoji: string; currency: string
   members: Member[]; expenses: Expense[]; settlements: Settlement[]
 }
-type Balance = { fromUser: User; toUser: User; amount: number }
+type Balance = { fromUser: User; toUser: User; amount: number; currency: string }
 
 const CATEGORIES = ["general", "food", "transport", "accommodation", "entertainment", "shopping", "utilities", "travel"]
 
@@ -65,7 +65,9 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
     const gData = await gRes.json()
     const bData = await bRes.json()
     setGroup(gData)
-    setBalances(bData)
+    // API returns { balances: [{ currency, balances: [...] }] } — flatten, keeping each row's currency
+    const sections: { currency: string; balances: Omit<Balance, "currency">[] }[] = Array.isArray(bData?.balances) ? bData.balances : []
+    setBalances(sections.flatMap((sec) => sec.balances.map((b) => ({ ...b, currency: sec.currency }))))
     if (gData.members && !expPaidBy) {
       setExpPaidBy(session?.user?.id ?? gData.members[0]?.userId ?? "")
     }
@@ -131,6 +133,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
       body: JSON.stringify({
         toUserId: settleTarget.toUser.id,
         amount: settleTarget.amount,
+        currency: settleTarget.currency,
         note: settleNote,
       }),
     })
@@ -215,7 +218,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
                     )}
                   </span>
                   <span className={`text-sm font-bold ${iOwe ? "text-rose-400" : "text-emerald-400"}`}>
-                    {formatCurrency(b.amount)}
+                    {formatCurrency(b.amount, b.currency)}
                   </span>
                   {iOwe && (
                     <Button size="sm" variant="success" onClick={() => setSettleTarget(b)}>
@@ -289,10 +292,10 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
                       </p>
                     </div>
                     <div className="text-right flex-shrink-0">
-                      <p className="text-sm font-semibold text-white">{formatCurrency(expense.amount)}</p>
+                      <p className="text-sm font-semibold text-white">{formatCurrency(expense.amount, expense.currency ?? group.currency)}</p>
                       {mySplit && (
                         <p className={`text-xs font-medium mt-0.5 ${myNet >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                          {myNet >= 0 ? "+" : ""}{formatCurrency(myNet)}
+                          {myNet >= 0 ? "+" : ""}{formatCurrency(myNet, expense.currency ?? group.currency)}
                         </p>
                       )}
                     </div>
@@ -328,7 +331,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <span className="text-sm font-bold text-rose-400">{formatCurrency(b.amount)}</span>
+                    <span className="text-sm font-bold text-rose-400">{formatCurrency(b.amount, b.currency)}</span>
                     {b.fromUser.id === session?.user?.id && (
                       <Button size="sm" variant="success" onClick={() => setSettleTarget(b)}>
                         Settle up
@@ -357,7 +360,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
                         <span className="text-white font-medium">{s.toUser.name ?? s.toUser.email}</span>
                       </span>
                     </div>
-                    <span className="text-xs font-semibold text-emerald-400">{formatCurrency(s.amount)}</span>
+                    <span className="text-xs font-semibold text-emerald-400">{formatCurrency(s.amount, s.currency ?? group.currency)}</span>
                   </div>
                 ))}
               </div>
@@ -506,7 +509,7 @@ export default function GroupDetailPage({ params }: { params: Promise<{ id: stri
                   <AvatarFallback>{getInitials(settleTarget.fromUser.name, settleTarget.fromUser.email)}</AvatarFallback>
                 </Avatar>
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-rose-400">{formatCurrency(settleTarget.amount)}</p>
+                  <p className="text-2xl font-bold text-rose-400">{formatCurrency(settleTarget.amount, settleTarget.currency)}</p>
                   <p className="text-xs text-slate-400">to {settleTarget.toUser.name ?? settleTarget.toUser.email}</p>
                 </div>
                 <Avatar>
