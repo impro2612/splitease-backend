@@ -30,8 +30,15 @@ export async function POST(req: NextRequest) {
     if (!email || typeof password !== "string" || !password) {
       return Response.json({ error: "Email and password required" }, { status: 400 })
     }
-    // Per-account limit too, so rotating IPs can't brute-force one user
-    if (!await checkRateLimit(`signin-email:${email}`, 20, 60 * 60 * 1000)) {
+    // Per account+network: a guesser on one network gets 10 tries per 15 min at this
+    // account. Kept separate from the account-wide cap so a stranger can't lock the real
+    // owner out by burning a small shared quota.
+    if (!await checkRateLimit(`signin-email-ip:${email}:${ip}`, 10, 15 * 60 * 1000)) {
+      return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
+    }
+    // Account-wide ceiling against distributed guessing (many IPs). High enough that
+    // locking someone out would take hundreds of attempts per hour.
+    if (!await checkRateLimit(`signin-email:${email}`, 200, 60 * 60 * 1000)) {
       return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
     }
 

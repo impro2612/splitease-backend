@@ -5,6 +5,7 @@ import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { EMAIL_RE, normalizeEmail } from "@/lib/email"
 import { readJson } from "@/lib/request"
 import { blockedPairs, pairKey } from "@/lib/blocks"
+import { getNetPerPerson } from "@/lib/balance"
 
 const pushUserSelect = { id: true, name: true, email: true, pushDevices: { select: { token: true } } } as const
 
@@ -135,6 +136,28 @@ export async function DELETE(
   })
   if (!targetMembership) {
     return Response.json({ error: "Member not found" }, { status: 404 })
+  }
+
+  // Someone with unsettled money in this group can't be removed (or leave): their debts
+  // would stay in everyone's balances while they disappear from the member list.
+  const [groupExpenses, groupSettlements] = await Promise.all([
+    prisma.expense.findMany({ where: { groupId }, select: { currency: true, paidById: true, splits: { select: { userId: true, amount: true, paid: true } } } }),
+    prisma.settlement.findMany({ where: { groupId }, select: { currency: true, fromUserId: true, toUserId: true, amount: true } }),
+  ])
+  const unsettled: string[] = []
+  for (const currency of new Set([...groupExpenses.map((e) => e.currency), ...groupSettlements.map((x) => x.currency)])) {
+    const net = getNetPerPerson(
+      groupExpenses.filter((e) => e.currency === currency),
+      groupSettlements.filter((x) => x.currency === currency),
+      true
+    ).get(userId) ?? 0
+    if (net !== 0) unsettled.push(`${net > 0 ? (userId === user.id ? "are owed" : "is owed") : (userId === user.id ? "owe" : "owes")} ${Math.abs(net) / 100} ${currency}`)
+  }
+  if (unsettled.length > 0) {
+    const error = userId === user.id
+      ? `You still ${unsettled.join(" and ")} in this group. Settle up before leaving.`
+      : `This member still ${unsettled.join(" and ")} in this group. Settle up before removing them.`
+    return Response.json({ error }, { status: 409 })
   }
 
   if (targetMembership.role === "ADMIN") {
