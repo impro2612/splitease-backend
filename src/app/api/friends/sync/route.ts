@@ -15,7 +15,11 @@ export async function POST(req: NextRequest) {
     select: { groupId: true },
   })
   const coMembers = await prisma.groupMember.findMany({
-    where: { groupId: { in: memberships.map((m) => m.groupId) }, userId: { not: user.id } },
+    where: {
+      groupId: { in: memberships.map((m) => m.groupId) },
+      userId: { not: user.id },
+      user: { email: { not: { endsWith: "@deleted.invalid" } } }, // skip deleted accounts
+    },
     select: { userId: true },
     distinct: ["userId"],
   })

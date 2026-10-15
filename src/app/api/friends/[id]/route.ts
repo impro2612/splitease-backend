@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
@@ -35,12 +35,12 @@ export async function PATCH(
       pusherServer.trigger(`private-user-${user.id}`, "friend-update", { action: "accepted" }).catch(() => {}),
     ])
 
-    logActivity({
+    after(() => logActivity({
       type: "friend_accepted",
       actorId: user.id,
       targetUserId: friend.requesterId,
       meta: { fromUserId: friend.requesterId },
-    })
+    }))
 
     const requester = await prisma.user.findUnique({
       where: { id: friend.requesterId },

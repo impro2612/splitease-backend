@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { logActivity } from "@/lib/activity"
@@ -101,12 +101,12 @@ export async function POST(req: NextRequest) {
       include: { members: { include: { user: { select: { id: true, name: true, email: true, image: true } } } } },
     })
 
-    logActivity({
+    after(() => logActivity({
       type: "group_created",
       actorId: user.id,
       groupId: group.id,
       meta: { groupName: group.name, groupEmoji: group.emoji },
-    })
+    }))
 
     return Response.json(group, { status: 201 })
   } catch (err) {

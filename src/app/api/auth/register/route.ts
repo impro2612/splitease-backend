@@ -44,15 +44,16 @@ export async function POST(req: NextRequest) {
     let phoneData: { phone?: string; phoneNormalized?: string } = {}
     if (phone) {
       const normalizedPhone = normalizePhone(phone)
-      if (normalizedPhone.replace(/\D/g, "").length >= 8) {
-        const existingPhone = await prisma.user.findFirst({
-          where: { OR: [{ phoneNormalized: normalizedPhone }, { phone }] },
-        })
-        if (existingPhone) {
-          return Response.json({ error: "This phone number is already registered" }, { status: 409 })
-        }
-        phoneData = { phone, phoneNormalized: normalizedPhone }
+      if (normalizedPhone.replace(/\D/g, "").length < 8) {
+        return Response.json({ error: "Please enter a valid phone number" }, { status: 400 })
       }
+      const existingPhone = await prisma.user.findFirst({
+        where: { OR: [{ phoneNormalized: normalizedPhone }, { phone }] },
+      })
+      if (existingPhone) {
+        return Response.json({ error: "This phone number is already registered" }, { status: 409 })
+      }
+      phoneData = { phone, phoneNormalized: normalizedPhone }
     }
 
     const hashedPassword = await bcrypt.hash(password, 10)

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
@@ -135,12 +135,12 @@ export async function POST(req: NextRequest) {
       })
     }
 
-    logActivity({
+    after(() => logActivity({
       type: "friend_request_sent",
       actorId: user.id,
       targetUserId: addresseeId,
       meta: { toUserName: addressee ? getDisplayName(addressee) : null },
-    })
+    }))
 
     return Response.json(friend, { status: 201 })
   } catch {

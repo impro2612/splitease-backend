@@ -38,11 +38,15 @@ export async function POST(
       return Response.json({ error: "No user found with that email" }, { status: 404 })
     }
 
-    const existingMembers = await prisma.groupMember.findMany({ where: { groupId }, select: { userId: true } })
+    const existingMembers = await prisma.groupMember.findMany({
+      where: { groupId },
+      select: { userId: true, user: { select: { email: true } } },
+    })
     if (existingMembers.some((m) => m.userId === newUser.id)) {
       return Response.json({ error: "User is already a member" }, { status: 409 })
     }
-    const memberIds = existingMembers.map((m) => m.userId)
+    // Deleted accounts stay in the group as history but are never auto-friended
+    const memberIds = existingMembers.filter((m) => !m.user.email.endsWith("@deleted.invalid")).map((m) => m.userId)
 
     // Blocks are honoured both ways: the adder can't pull in someone they blocked or
     // who blocked them, and no friendship is ever auto-created across a block.

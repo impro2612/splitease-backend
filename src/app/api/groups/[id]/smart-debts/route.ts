@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { logActivity } from "@/lib/activity"
@@ -36,12 +36,12 @@ export async function PATCH(
     select: { smartDebtsEnabled: true },
   })
 
-  logActivity({
+  after(() => logActivity({
     type: "smart_debts_toggled",
     actorId: user.id,
     groupId,
     meta: { enabled, groupName: groupInfo?.name, groupEmoji: groupInfo?.emoji },
-  })
+  }))
 
   return Response.json({ smartDebtsEnabled: group.smartDebtsEnabled })
 }

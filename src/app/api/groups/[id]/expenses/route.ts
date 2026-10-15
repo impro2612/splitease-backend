@@ -1,6 +1,7 @@
 import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
+import { Prisma } from "@/generated/prisma/client"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -109,22 +110,34 @@ export async function POST(
       return Response.json({ error: "Invalid split configuration" }, { status: 400 })
     }
 
-    const expense = await prisma.expense.create({
-      data: {
-        groupId,
-        description: description.trim(),
-        amount: totalCents, // stored as cents
-        currency: expenseCurrency,
-        category: typeof category === "string" && category ? category : "general",
-        paidById,
-        createdById: user.id,
-        splitType,
-        date: expenseDate ?? new Date(),
-        clientRequestId: clientRequestId ?? null,
-        splits: { create: splitData },
-      },
-      include: expenseInclude,
-    })
+    let expense
+    try {
+      expense = await prisma.expense.create({
+        data: {
+          groupId,
+          description: description.trim(),
+          amount: totalCents, // stored as cents
+          currency: expenseCurrency,
+          category: typeof category === "string" && category ? category : "general",
+          paidById,
+          createdById: user.id,
+          splitType,
+          date: expenseDate ?? new Date(),
+          clientRequestId: clientRequestId ?? null,
+          splits: { create: splitData },
+        },
+        include: expenseInclude,
+      })
+    } catch (err) {
+      // Two concurrent retries of the same offline expense: the loser returns the winner's row
+      if (clientRequestId && err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+        const existing = await prisma.expense.findUnique({ where: { clientRequestId }, include: expenseInclude })
+        if (existing && existing.groupId === groupId && existing.createdById === user.id) {
+          return Response.json(expenseToApi(existing), { status: 200 })
+        }
+      }
+      throw err
+    }
 
     await prisma.group.update({ where: { id: groupId }, data: { updatedAt: new Date() } })
 

@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { logActivity } from "@/lib/activity"
@@ -150,12 +150,12 @@ export async function PATCH(
   })
 
   if (name !== undefined && name !== existingGroup.name) {
-    logActivity({
+    after(() => logActivity({
       type: "group_renamed",
       actorId: user.id,
       groupId: id,
       meta: { oldName: existingGroup.name, newName: group.name, groupEmoji: group.emoji },
-    })
+    }))
   }
 
   return Response.json(group)

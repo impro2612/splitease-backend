@@ -114,7 +114,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           { type: "expense_updated", groupId, expenseId: updated.id, url: buildAppUrl(`group/${groupId}`) },
           [user.id]
         ))
-        logActivity({
+        after(() => logActivity({
           type: "expense_edited",
           actorId: user.id,
           groupId,
@@ -132,7 +132,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             oldCurrency: expense.currency !== updated.currency ? expense.currency : undefined,
             newCurrency: expense.currency !== updated.currency ? updated.currency : undefined,
           },
-        })
+        }))
         return Response.json(expenseToApi(updated))
       }
 
@@ -192,7 +192,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     ))
     const oldPaidByMember = groupMembers.find(m => m.userId === expense.paidById)
     const newPaidByMember = groupMembers.find(m => m.userId === updated.paidById)
-    logActivity({
+    after(() => logActivity({
       type: "expense_edited",
       actorId: user.id,
       groupId,
@@ -213,7 +213,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         oldCurrency: expense.currency !== updated.currency ? expense.currency : undefined,
         newCurrency: expense.currency !== updated.currency ? updated.currency : undefined,
       },
-    })
+    }))
     return Response.json(expenseToApi(updated))
   } catch (err) {
     console.error(err)
@@ -267,7 +267,7 @@ export async function DELETE(req: NextRequest, { params }: Params) {
     },
     [user.id]
   ))
-  logActivity({
+  after(() => logActivity({
     type: "expense_deleted",
     actorId: user.id,
     groupId,
@@ -278,6 +278,6 @@ export async function DELETE(req: NextRequest, { params }: Params) {
       groupName: groupInfo?.name,
       groupEmoji: groupInfo?.emoji,
     },
-  })
+  }))
   return Response.json({ success: true }, { status: 200 })
 }
