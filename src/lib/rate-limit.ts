@@ -27,19 +27,27 @@ async function upstashRateLimit(key: string, max: number, windowMs: number): Pro
   const windowSec = Math.ceil(windowMs / 1000)
   const redisKey  = `rl:${key}`
 
-  // MULTI: INCR + EXPIRE in a single pipeline
-  const res = await fetch(`${url}/pipeline`, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify([
-      ["INCR", redisKey],
-      ["EXPIRE", redisKey, windowSec, "NX"],
-    ]),
-  })
-  if (!res.ok) return true // fail open — never block on infra errors
-  const results = await res.json() as { result: number }[]
-  const count = results[0]?.result ?? 0
-  return count <= max
+  // MULTI: INCR + EXPIRE in a single pipeline. Any infra failure (DNS, timeout, deleted
+  // database, bad response) falls back to the in-memory limiter — it must never turn
+  // sign-in into a 500.
+  try {
+    const res = await fetch(`${url}/pipeline`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify([
+        ["INCR", redisKey],
+        ["EXPIRE", redisKey, windowSec, "NX"],
+      ]),
+      signal: AbortSignal.timeout(2_000),
+    })
+    if (!res.ok) throw new Error(`Upstash HTTP ${res.status}`)
+    const results = await res.json() as { result: number }[]
+    const count = results[0]?.result ?? 0
+    return count <= max
+  } catch (err) {
+    console.error("[rate-limit] Upstash unavailable, using in-memory fallback:", err instanceof Error ? err.message : err)
+    return inMemoryRateLimit(key, max, windowMs)
+  }
 }
 
 const useUpstash =
