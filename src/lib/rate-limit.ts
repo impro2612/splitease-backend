@@ -1,6 +1,6 @@
 // Rate limiter with two backends:
 //   1. Upstash Redis  — production-grade, survives cold starts. Activated when
-//      UPSTASH_REDIS_REST_URL + UPSTASH_REDIS_REST_TOKEN are set (add via Vercel
+//      UPSTASH_REDIS_REST_* or KV_REST_API_* URL+TOKEN are set (add via Vercel
 //      Marketplace → Upstash, or set manually in the dashboard).
 //   2. In-memory Map  — zero-config fallback for local dev and single-instance deploys.
 //      Resets on cold starts; adequate when traffic is low.
@@ -22,8 +22,8 @@ function inMemoryRateLimit(key: string, max: number, windowMs: number): boolean 
 }
 
 async function upstashRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
-  const url   = process.env.UPSTASH_REDIS_REST_URL!
-  const token = process.env.UPSTASH_REDIS_REST_TOKEN!
+  const url   = REDIS_URL!
+  const token = REDIS_TOKEN!
   const windowSec = Math.ceil(windowMs / 1000)
   const redisKey  = `rl:${key}`
 
@@ -50,13 +50,15 @@ async function upstashRateLimit(key: string, max: number, windowMs: number): Pro
   }
 }
 
-const useUpstash =
-  typeof process !== "undefined" &&
-  !!process.env.UPSTASH_REDIS_REST_URL &&
-  !!process.env.UPSTASH_REDIS_REST_TOKEN
+// Accept both naming schemes: UPSTASH_REDIS_REST_* (manual setup / Upstash console) and
+// KV_REST_API_* (what the Vercel Marketplace Upstash integration injects).
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL ?? process.env.KV_REST_API_URL
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN ?? process.env.KV_REST_API_TOKEN
+
+const useUpstash = typeof process !== "undefined" && !!REDIS_URL && !!REDIS_TOKEN
 
 if (!useUpstash && typeof process !== "undefined" && process.env.NODE_ENV === "production") {
-  console.warn("[rate-limit] Upstash env vars not set — falling back to in-memory rate limiting (ineffective in serverless). Set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Vercel.")
+  console.warn("[rate-limit] No Redis configured — falling back to in-memory rate limiting (ineffective in serverless). Connect Upstash Redis to this project in Vercel (Storage tab).")
 }
 
 export async function checkRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
