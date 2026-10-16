@@ -8,7 +8,7 @@ import { issueTokenPair } from "@/lib/tokens"
 
 // Apple's public signing keys; jose caches them between requests
 const appleKeys = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"))
-const APPLE_AUDIENCE = (process.env.APPLE_BUNDLE_ID ?? "com.splitit.app").split(",").map((s) => s.trim())
+const APPLE_AUDIENCE = (process.env.APPLE_BUNDLE_ID ?? "com.splitit.ios").split(",").map((s) => s.trim())
 
 export async function POST(req: NextRequest) {
   try {
