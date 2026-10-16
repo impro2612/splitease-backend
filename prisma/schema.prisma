@@ -16,6 +16,7 @@ model User {
   emailVerified DateTime?
   password      String?
   googleId      String?   @unique
+  appleId       String?   @unique
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
