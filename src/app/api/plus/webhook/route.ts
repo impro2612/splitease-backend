@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import { timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
-import { syncPlusFromRevenueCat } from "@/lib/revenuecat"
+import { notifyPlusChanged, syncPlusFromRevenueCat } from "@/lib/revenuecat"
 
 function authorized(req: NextRequest): boolean {
   const expected = process.env.REVENUECAT_WEBHOOK_AUTH
@@ -32,6 +32,7 @@ export async function POST(req: NextRequest) {
     // Fallback when the REST lookup isn't available
     const until = new Date(event.expiration_at_ms)
     await prisma.user.update({ where: { id: user.id }, data: { plusUntil: until } })
+    await notifyPlusChanged(user.id)
   }
   return Response.json({ ok: true })
 }
