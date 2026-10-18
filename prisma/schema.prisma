@@ -17,6 +17,7 @@ model User {
   password      String?
   googleId      String?   @unique
   appleId       String?   @unique
+  appleRefreshToken String?
   trialEndsAt   DateTime?
   plusUntil     DateTime?
   plusReminder  Int?

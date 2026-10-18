@@ -1,10 +1,11 @@
-import { NextRequest } from "next/server"
+import { NextRequest, after } from "next/server"
 import { createRemoteJWKSet, jwtVerify } from "jose"
 import { prisma } from "@/lib/prisma"
 import { normalizeEmail } from "@/lib/email"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { clientIp } from "@/lib/request"
 import { issueTokenPair } from "@/lib/tokens"
+import { exchangeAppleCode } from "@/lib/apple"
 
 // Apple's public signing keys; jose caches them between requests
 const appleKeys = createRemoteJWKSet(new URL("https://appleid.apple.com/auth/keys"))
@@ -15,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!await checkRateLimit(`apple-auth:${clientIp(req)}`, 20, 15 * 60 * 1000)) {
       return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 })
     }
-    const { identityToken, fullName, mode } = await req.json()
+    const { identityToken, fullName, mode, authorizationCode } = await req.json()
     if (!identityToken || typeof identityToken !== "string") {
       return Response.json({ error: "identityToken required" }, { status: 400 })
     }
@@ -65,6 +66,15 @@ export async function POST(req: NextRequest) {
         { error: "An account with this email already exists. Sign in the way you created it (email and password, or Google)." },
         { status: 409 }
       )
+    }
+
+    // Keep Apple's refresh token so the authorisation can be revoked if the account is deleted
+    if (typeof authorizationCode === "string" && authorizationCode) {
+      const userId = user.id
+      after(async () => {
+        const appleRefresh = await exchangeAppleCode(authorizationCode)
+        if (appleRefresh) await prisma.user.update({ where: { id: userId }, data: { appleRefreshToken: appleRefresh } }).catch(() => {})
+      })
     }
 
     const { accessToken, refreshToken } = await issueTokenPair(user.id, user.email, user.name)

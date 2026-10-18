@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { EMAIL_RE, normalizeEmail } from "@/lib/email"
+import { revokeAppleToken } from "@/lib/apple"
 
 // DELETE /api/auth/me — delete account.
 // Shared group history (expenses, splits, settlements) belongs to the other members too,
@@ -15,6 +16,11 @@ export async function DELETE(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
+    // Apple requires revoking Sign in with Apple when the account is deleted (best effort:
+    // a failed revoke must not block the user from deleting their account)
+    const apple = await prisma.user.findUnique({ where: { id: user.id }, select: { appleRefreshToken: true } })
+    if (apple?.appleRefreshToken) await revokeAppleToken(apple.appleRefreshToken)
+
     await prisma.$transaction(async (tx) => {
       const uid = user.id
 
@@ -69,6 +75,8 @@ export async function DELETE(req: NextRequest) {
           email: `deleted-${uid}@deleted.invalid`,
           password: null,
           googleId: null,
+          appleId: null,
+          appleRefreshToken: null,
           phone: null,
           phoneNormalized: null,
           image: null,

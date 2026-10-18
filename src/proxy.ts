@@ -6,7 +6,7 @@ export async function proxy(req: NextRequest) {
   const { pathname } = req.nextUrl
   const token = await getToken({ req, secret: process.env.NEXTAUTH_SECRET })
 
-  const publicPaths = ["/", "/signin", "/signup"]
+  const publicPaths = ["/", "/signin", "/signup", "/privacy", "/terms"]
   const isPublic = publicPaths.includes(pathname) || pathname.startsWith("/api/auth")
 
   // API routes handle their own auth (Bearer JWT for mobile, session for web).
