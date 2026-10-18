@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { buildBalanceMap, getUserTotals } from "@/lib/balance"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const url = new URL(req.url)
   const yearParam = url.searchParams.get("year")

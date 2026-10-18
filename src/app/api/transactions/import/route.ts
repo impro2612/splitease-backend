@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { parseCSV } from "@/lib/csv-parser"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -19,6 +20,8 @@ const MAX_IMPORT_BYTES = 5 * 1024 * 1024
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   // 10 CSV imports per hour per user
   if (!await checkRateLimit(`import-csv:${user.id}`, 10, 60 * 60 * 1000)) {

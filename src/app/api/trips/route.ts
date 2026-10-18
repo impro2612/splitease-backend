@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -25,6 +26,8 @@ function toApi(trip: TripWithDetails, actualSpent = 0) {
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const trips = await prisma.trip.findMany({
     where: { userId: user.id },
@@ -73,6 +76,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   if (!await checkRateLimit(`trips:${user.id}`, 20, 60 * 1000)) {
     return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })

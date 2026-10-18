@@ -1,5 +1,6 @@
 import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
@@ -74,6 +75,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   if (!await checkRateLimit(`borrow-book:${user.id}`, 30, 60 * 1000)) {
     return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })

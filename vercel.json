@@ -1,3 +1,11 @@
 {
-  "regions": ["bom1"]
+  "regions": [
+    "bom1"
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/plus-reminders",
+      "schedule": "30 4 * * *"
+    }
+  ]
 }

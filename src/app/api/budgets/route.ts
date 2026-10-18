@@ -1,11 +1,14 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const budgets = await prisma.personalBudget.findMany({ where: { userId: user.id } })
   return Response.json(budgets.map((b) => ({ ...b, amount: b.amount / 100 })))
@@ -14,6 +17,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { category, amount } = await req.json()
 
@@ -37,6 +42,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const body = await req.json()
   const { category } = body ?? {}

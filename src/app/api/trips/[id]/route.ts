@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
 import { CURRENCY_RE, type JsonBody } from "@/lib/request"
@@ -37,6 +38,8 @@ function toApi(
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const trip = await prisma.trip.findFirst({
@@ -110,6 +113,8 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const trip = await prisma.trip.findFirst({ where: { id, userId: user.id } })
@@ -209,6 +214,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const trip = await prisma.trip.findFirst({ where: { id, userId: user.id } })

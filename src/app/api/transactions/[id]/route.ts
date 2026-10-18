@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
 
@@ -9,6 +10,8 @@ type Params = { params: Promise<{ id: string }> }
 export async function PATCH(req: NextRequest, { params }: Params) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const { category } = await req.json()
@@ -34,6 +37,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 export async function DELETE(req: NextRequest, { params }: Params) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const txn = await prisma.personalTransaction.findUnique({ where: { id } })

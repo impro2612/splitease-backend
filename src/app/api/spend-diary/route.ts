@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { checkRateLimit } from "@/lib/rate-limit"
 
@@ -7,6 +8,8 @@ import { checkRateLimit } from "@/lib/rate-limit"
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const diaries = await prisma.spendDiary.findMany({
     where: { userId: user.id },
@@ -40,6 +43,8 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   if (!await checkRateLimit(`spend-diary:${user.id}`, 30, 60 * 1000)) {
     return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })

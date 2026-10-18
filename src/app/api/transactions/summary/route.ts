@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
 import { currentMonth, monthKey, parseMonth } from "@/lib/month"
@@ -8,6 +9,8 @@ import { currentMonth, monthKey, parseMonth } from "@/lib/month"
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { searchParams } = new URL(req.url)
   const month = searchParams.get("month") // "YYYY-MM", defaults to current month

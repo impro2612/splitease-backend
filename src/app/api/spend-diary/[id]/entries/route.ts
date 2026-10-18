@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { CURRENCY_RE, parseOptionalDate, type JsonBody } from "@/lib/request"
@@ -11,6 +12,8 @@ export async function GET(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const diary = await prisma.spendDiary.findFirst({ where: { id, userId: user.id } })
@@ -31,6 +34,8 @@ export async function POST(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const diary = await prisma.spendDiary.findFirst({ where: { id, userId: user.id } })

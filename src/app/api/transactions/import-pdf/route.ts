@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { insertNewTransactions } from "@/lib/persist-transactions"
@@ -128,6 +129,8 @@ function detectStatementMonth(firstPageText: string): string | null {
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   // 5 PDF imports per hour per user (each one calls the external PDF parser + AI)
   if (!await checkRateLimit(`import-pdf:${user.id}`, 5, 60 * 60 * 1000)) {

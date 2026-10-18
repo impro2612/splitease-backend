@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 
 // PATCH /api/spend-diary/[id] — rename diary
@@ -9,6 +10,8 @@ export async function PATCH(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const { title } = await req.json()
@@ -31,6 +34,8 @@ export async function DELETE(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id)
+  if (locked) return locked
 
   const { id } = await params
   const diary = await prisma.spendDiary.findFirst({ where: { id, userId: user.id } })
