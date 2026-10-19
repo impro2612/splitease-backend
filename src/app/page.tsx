@@ -15,9 +15,8 @@ export default function LandingPage() {
       {/* Navbar */}
       <nav className="relative z-10 flex items-center justify-between px-6 py-5 max-w-7xl mx-auto">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-lg">
-            💸
-          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- same mark as the app icon and Google sign-in screen */}
+          <img src="/splitit-logo.png" alt="SplitIT logo" width={32} height={32} className="w-8 h-8 rounded-xl bg-white" />
           <span className="text-xl font-bold text-white">SplitIT</span>
         </div>
         <div className="flex items-center gap-3">
@@ -186,7 +185,12 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="relative z-10 border-t border-white/5 py-8 text-center text-slate-500 text-sm">
-        <p>© 2024 SplitIT. Made with ❤️ for people who hate awkward money chats.</p>
+        <nav className="mb-3 flex items-center justify-center gap-5">
+          <Link href="/privacy" className="hover:text-slate-300">Privacy Policy</Link>
+          <Link href="/terms" className="hover:text-slate-300">Terms of Use</Link>
+          <a href="mailto:support.splitit@gmail.com" className="hover:text-slate-300">Contact</a>
+        </nav>
+        <p>© 2026 SplitIT. Made with ❤️ for people who hate awkward money chats.</p>
       </footer>
     </div>
   )
