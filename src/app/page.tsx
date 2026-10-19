@@ -15,8 +15,7 @@ const FEATURES = [
   { icon: MessageCircle, color: "#4ade80", title: "Friends & chat", text: "Find friends by name, email or phone, sync your contacts and chat right in the app." },
   { icon: BookOpen, color: "#f59e0b", title: "Borrow Book", text: "Lent someone cash? Keep personal IOUs separate from groups, with part payments." },
   { icon: Plane, color: "#10b981", title: "Trip Planner", text: "Set a budget before you go and see how you're tracking while you travel." },
-  { icon: Map, color: "#a78bfa", title: "Timeline", text: "Every trip pinned on a map, so you can look back at where you've been." },
-  { icon: Sparkles, color: "#fb7185", title: "ScrapBook", text: "Relive your year: the trips, the people and the spends, as a story you can share." },
+  { icon: Map, color: "#a78bfa", title: "Timeline & ScrapBook", text: "Every trip pinned on a map, and your year in money as a story you can share." },
   { icon: PieChart, color: "#a3e635", title: "My Spending", text: "Import a bank statement and see where your money goes, with smart insights." },
   { icon: BellRing, color: "#38bdf8", title: "Auto expense tracking", text: "On a trip, SplitIT spots payment alerts and offers to add them to the group. (Android)" },
 ]
@@ -68,10 +67,10 @@ function StoreButton({ store }: { store: "apple" | "google" }) {
   )
 }
 
-function Phone({ src, alt, className = "" }: { src: string; alt: string; className?: string }) {
+function Phone({ src, alt, className = "", eager = false }: { src: string; alt: string; className?: string; eager?: boolean }) {
   return (
     <div className={`rounded-[2.2rem] border border-white/10 bg-[#12121f] p-2 shadow-2xl shadow-indigo-950/60 ${className}`}>
-      <img src={src} alt={alt} width={466} height={900} className="w-full rounded-[1.8rem]" loading="lazy" />
+      <img src={src} alt={alt} width={466} height={900} className="w-full rounded-[1.8rem]" loading={eager ? "eager" : "lazy"} fetchPriority={eager ? "high" : "auto"} />
     </div>
   )
 }
@@ -117,7 +116,7 @@ export default function Home() {
             <p className="mt-4 text-sm text-slate-500">For iPhone and Android · Made in India 🇮🇳</p>
           </div>
           <div className="relative mx-auto w-full max-w-[19rem]">
-            <Phone src="/screens/dashboard.webp" alt="SplitIT home screen showing your net balance and who owes whom" />
+            <Phone src="/screens/dashboard.webp" alt="SplitIT home screen showing your net balance and who owes whom" eager />
           </div>
         </section>
 
