@@ -25,7 +25,7 @@ const SECTIONS: LegalSection[] = [
     heading: "Features that use sensitive phone data",
     body: [[
       "Contacts (only if you tap Sync Contacts): phone numbers from your contacts are sent to our server only to check which of your contacts already use SplitIT. They are not stored, and we never message your contacts.",
-      "SMS (Android only, only if you turn on Track Expense for a group): payment messages from your bank are read and parsed on your phone. Nothing is sent to us unless you approve a detected payment and add it as an expense.",
+      "Payment notifications (Android only, only if you turn on Track Expense for a group and allow notification access): payment alerts from your bank or SMS app are read on your phone to spot new payments. SplitIT does not read your SMS inbox. Nothing is sent to us unless you approve a detected payment and add it as an expense.",
       "Bank statements: an imported PDF is read by our statement service to extract transactions and is then discarded. Only the extracted transactions are saved, and only you can see them. Your bank login is never needed.",
     ]],
   },
