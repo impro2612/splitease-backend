@@ -21,6 +21,8 @@ model User {
   trialEndsAt   DateTime?
   plusUntil     DateTime?
   plusReminder  Int?
+  plusWillRenew Boolean?  // false = subscription cancelled, ends at plusUntil
+  plusEndReminder Int?    // last subscription-ending reminder stage sent (15/7/1)
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt

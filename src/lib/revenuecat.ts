@@ -25,9 +25,17 @@ export async function syncPlusFromRevenueCat(userId: string): Promise<Date | nul
     const ent = json?.subscriber?.entitlements?.[PLUS_ENTITLEMENT]
     // expires_date null on an active entitlement = lifetime purchase
     const until = ent ? (ent.expires_date ? new Date(ent.expires_date) : new Date("2100-01-01")) : null
-    const before = await prisma.user.findUnique({ where: { id: userId }, select: { plusUntil: true } })
-    await prisma.user.update({ where: { id: userId }, data: { plusUntil: until } })
-    if ((before?.plusUntil?.getTime() ?? null) !== (until?.getTime() ?? null)) await notifyPlusChanged(userId)
+    // Cancelled = the store saw an unsubscribe on the product behind the entitlement
+    const sub = ent ? json?.subscriber?.subscriptions?.[ent.product_identifier] : null
+    const willRenew = ent ? !(sub?.unsubscribe_detected_at) && ent.expires_date !== null : null
+    const before = await prisma.user.findUnique({ where: { id: userId }, select: { plusUntil: true, plusWillRenew: true } })
+    const changed = (before?.plusUntil?.getTime() ?? null) !== (until?.getTime() ?? null) || before?.plusWillRenew !== willRenew
+    await prisma.user.update({
+      where: { id: userId },
+      // A new period or a re-subscribe starts the ending reminders over
+      data: { plusUntil: until, plusWillRenew: willRenew, ...(changed ? { plusEndReminder: null } : {}) },
+    })
+    if (changed) await notifyPlusChanged(userId)
     return until
   } catch {
     return undefined

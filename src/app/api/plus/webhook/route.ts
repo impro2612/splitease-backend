@@ -31,7 +31,12 @@ export async function POST(req: NextRequest) {
   if (synced === undefined && typeof event.expiration_at_ms === "number") {
     // Fallback when the REST lookup isn't available
     const until = new Date(event.expiration_at_ms)
-    await prisma.user.update({ where: { id: user.id }, data: { plusUntil: until } })
+    const willRenew = event.type === "CANCELLATION" ? false
+      : ["RENEWAL", "UNCANCELLATION", "INITIAL_PURCHASE", "PRODUCT_CHANGE"].includes(event.type) ? true : undefined
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { plusUntil: until, ...(willRenew === undefined ? {} : { plusWillRenew: willRenew, plusEndReminder: null }) },
+    })
     await notifyPlusChanged(user.id)
   }
   return Response.json({ ok: true })

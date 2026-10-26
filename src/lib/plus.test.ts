@@ -39,3 +39,10 @@ test("per-user trialEndsAt override works even without a launch date", () => {
   const s = plusStatus(user({ trialEndsAt: new Date("2026-01-02") }), new Date("2026-02-01"), null)
   assert.equal(s.access, false)
 })
+
+test("cancelled subscription keeps Plus until it ends and reports willRenew false", () => {
+  const now = new Date(launch.getTime() + 200 * DAY)
+  const s = plusStatus(user({ plusUntil: new Date(now.getTime() + 5 * DAY), plusWillRenew: false } as any), now, launch)
+  assert.deepEqual([s.plan, s.access, s.willRenew], ["plus", true, false])
+  assert.equal(plusStatus(user(), now, launch).willRenew, null)
+})

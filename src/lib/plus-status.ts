@@ -18,9 +18,10 @@ export type PlusStatus = {
   trialEndsAt: string | null
   plusUntil: string | null
   daysLeft: number | null         // whole days of trial left (trial only)
+  willRenew: boolean | null       // plus only: false once the subscription is cancelled
 }
 
-export type PlusUser = { createdAt: Date; trialEndsAt: Date | null; plusUntil: Date | null }
+export type PlusUser = { createdAt: Date; trialEndsAt: Date | null; plusUntil: Date | null; plusWillRenew?: boolean | null }
 
 export function trialEnd(u: PlusUser, launch = launchDate()): Date | null {
   if (u.trialEndsAt) return u.trialEndsAt
@@ -31,8 +32,8 @@ export function trialEnd(u: PlusUser, launch = launchDate()): Date | null {
 
 export function plusStatus(u: PlusUser, now = new Date(), launch = launchDate()): PlusStatus {
   const end = trialEnd(u, launch)
-  const base = { trialEndsAt: end?.toISOString() ?? null, plusUntil: u.plusUntil?.toISOString() ?? null }
-  if (u.plusUntil && u.plusUntil > now) return { ...base, access: true, plan: "plus", daysLeft: null }
+  const base = { trialEndsAt: end?.toISOString() ?? null, plusUntil: u.plusUntil?.toISOString() ?? null, willRenew: null }
+  if (u.plusUntil && u.plusUntil > now) return { ...base, access: true, plan: "plus", daysLeft: null, willRenew: u.plusWillRenew ?? null }
   if (!end) return { ...base, access: true, plan: "trial", daysLeft: null } // paywall not launched
   if (end > now) return { ...base, access: true, plan: "trial", daysLeft: Math.ceil((end.getTime() - now.getTime()) / DAY) }
   return { ...base, access: false, plan: "free", daysLeft: 0 }
