@@ -3,7 +3,7 @@ import { pusherServer } from "@/lib/pusher"
 
 // RevenueCat is the source of truth for store subscriptions (App Store + Play).
 // The app logs in to RevenueCat with our user id, so app_user_id === User.id.
-export const PLUS_ENTITLEMENT = "plus"
+export const PLUS_ENTITLEMENT = "splitit_plus" // RevenueCat entitlement identifier
 
 /** Tells the user's open apps to re-read their Plus status right away. */
 export async function notifyPlusChanged(userId: string) {
