@@ -1,5 +1,6 @@
 import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
@@ -9,6 +10,8 @@ import { checkRateLimit } from "@/lib/rate-limit"
 export async function POST(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id) // chat is part of SplitIT Plus
+  if (locked) return locked
 
   // 60 messages per minute per user
   if (!await checkRateLimit(`messages:${user.id}`, 60, 60 * 1000)) {
@@ -88,6 +91,8 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id) // chat is part of SplitIT Plus
+  if (locked) return locked
 
   const { ids } = await req.json().catch(() => ({ ids: null }))
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !ids.every((i) => typeof i === "string")) {

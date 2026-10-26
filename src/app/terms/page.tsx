@@ -24,7 +24,7 @@ const SECTIONS: LegalSection[] = [
     heading: "Free use, free trial and SplitIT Plus",
     body: [
       [
-        "Splitting is free: groups, expenses, balances, settling up, friends and chat.",
+        "Splitting is free: groups, expenses, balances, settling up and friends.",
         "Every new account gets all features free for 3 months. After that, My Spending, Borrow Book, Trip Planner, Timeline, ScrapBook and Spend Diary need a SplitIT Plus subscription.",
         "SplitIT Plus is ₹49 a month or ₹499 a year (or the local price shown in the App Store or Google Play). Payment is taken by Apple or Google when you confirm the purchase.",
         "Subscriptions renew automatically at the end of each period unless you cancel at least 24 hours before it ends. Manage or cancel in your App Store or Google Play subscription settings; cancelling stops the next renewal, and Plus stays active until the paid period ends.",

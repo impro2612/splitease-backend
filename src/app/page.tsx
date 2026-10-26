@@ -22,7 +22,7 @@ const FEATURES = [
 
 const FAQ = [
   { q: "Does SplitIT move money?", a: "No. SplitIT keeps track of who owes whom. Pay each other however you like, by UPI, cash or bank transfer, and record it with Settle up." },
-  { q: "Is SplitIT free?", a: "Splitting is free forever: groups, unlimited expenses, settling up, friends and chat. Everything else is free for your first 3 months, then part of SplitIT Plus." },
+  { q: "Is SplitIT free?", a: "Splitting is free forever: groups, unlimited expenses, settling up and friends. Everything else (including chat) is free for your first 3 months, then part of SplitIT Plus." },
   { q: "Do my friends need the app?", a: "To see the group and add expenses, yes. Invite them by WhatsApp or text message right from the app." },
   { q: "Is my data safe?", a: "Everything is sent over encrypted connections and stored on servers in India. We never sell your data or show ads. Read our Privacy Policy for the details." },
 ]
@@ -160,7 +160,7 @@ export default function Home() {
               <p className="mt-1 text-sm text-slate-400">Forever</p>
               <p className="font-display mt-6 text-4xl font-extrabold text-white">₹0</p>
               <ul className="mt-6 space-y-3 text-sm">
-                {["Groups & unlimited expenses", "Balances, Smart Debts & settle up", "Any currency", "Friends, chat & activity"].map((t) => (
+                {["Groups & unlimited expenses", "Balances, Smart Debts & settle up", "Any currency", "Friends & activity"].map((t) => (
                   <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-400" />{t}</li>
                 ))}
               </ul>
@@ -172,7 +172,7 @@ export default function Home() {
               <p className="font-display mt-6 text-4xl font-extrabold text-white">₹49<span className="text-base font-semibold text-slate-400"> /month</span></p>
               <p className="mt-1 text-sm text-slate-400">or ₹499 a year (save 15%)</p>
               <ul className="mt-6 space-y-3 text-sm">
-                {["My Spending with smart insights", "Borrow Book", "Trip Planner", "Timeline map", "ScrapBook", "Spend Diary"].map((t) => (
+                {["Chat with friends", "My Spending with smart insights", "Borrow Book", "Trip Planner", "Timeline map", "ScrapBook", "Spend Diary"].map((t) => (
                   <li key={t} className="flex items-start gap-2"><Check className="mt-0.5 h-4 w-4 shrink-0 text-indigo-300" />{t}</li>
                 ))}
               </ul>

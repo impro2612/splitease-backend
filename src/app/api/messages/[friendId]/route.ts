@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 
 // GET /api/messages/[friendId]?after=<ISO>&limit=<n>
@@ -10,6 +11,8 @@ export async function GET(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id) // chat is part of SplitIT Plus
+  if (locked) return locked
 
   const { friendId } = await params
 

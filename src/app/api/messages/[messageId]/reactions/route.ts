@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
+import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -11,6 +12,8 @@ export async function POST(
 ) {
   const user = await getSessionUser(req)
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  const locked = await requirePlus(user.id) // chat is part of SplitIT Plus
+  if (locked) return locked
 
   const { messageId } = await params
   const { emoji } = await req.json().catch(() => ({ emoji: undefined }))
