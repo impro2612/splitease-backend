@@ -73,6 +73,24 @@ export async function wikipediaPlacePhotos(query: string): Promise<GroupImage[]>
     }))
 }
 
+// Words people use for groups that photo sites don't tag well → what to search instead
+const PHOTO_SYNONYMS: Record<string, string> = {
+  flatmates: "roommates", flatmate: "roommates", roommate: "roommates", flat: "apartment", pg: "shared room",
+  hostel: "hostel", timepass: "friends hanging out", chill: "friends hanging out", gang: "friends group",
+  squad: "friends group", bday: "birthday", "b'day": "birthday", shaadi: "indian wedding", sangeet: "indian wedding",
+  mehendi: "henna", haldi: "indian wedding", ipl: "cricket", ration: "groceries", bills: "paying bills",
+  ghar: "family home", bhai: "brothers", dosti: "friends", yaar: "friends", booze: "drinks", nye: "new year party",
+  ganpati: "ganesh festival", garba: "navratri", diwali: "diwali", holi: "holi festival", offsite: "team offsite",
+}
+
+/** Search terms to try, best first: the theme as typed (with synonyms), then each word alone */
+export function photoQueries(theme: string): string[] {
+  const words = theme.toLowerCase().split(/\s+/).filter(Boolean)
+  const mapped = words.map((w) => PHOTO_SYNONYMS[w] ?? w)
+  const out = [mapped.join(" "), ...mapped]
+  return [...new Set(out.filter(Boolean))]
+}
+
 export const unsplashEnabled = () => !!process.env.UNSPLASH_ACCESS_KEY
 
 export async function unsplashPhotos(query: string, page = 1): Promise<GroupImage[]> {
