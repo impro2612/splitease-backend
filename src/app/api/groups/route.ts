@@ -1,5 +1,6 @@
 import { NextRequest, after } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { isAllowedImageUrl, parseCredit } from "@/lib/group-image"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { logActivity } from "@/lib/activity"
 import { getNetPerPerson } from "@/lib/balance"
@@ -58,8 +59,8 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const { name, color, emoji, currency, location, lat: clientLat, lng: clientLng, startDate, endDate } = await readJson<{
-      name: string; color: string; emoji: string; currency: string; location: string
+    const { name, color, emoji, imageUrl, imageCredit, currency, location, lat: clientLat, lng: clientLng, startDate, endDate } = await readJson<{
+      name: string; color: string; emoji: string; imageUrl: string | null; imageCredit: unknown; currency: string; location: string
       lat: number | null; lng: number | null; startDate: string; endDate: string
     }>(req)
 
@@ -89,6 +90,7 @@ export async function POST(req: NextRequest) {
         name: name.trim(),
         color: color ?? "#6366f1",
         emoji: emoji ?? "💰",
+        ...(isAllowedImageUrl(imageUrl) && { imageUrl, imageCredit: parseCredit(imageCredit) }),
         currency: currency ?? "USD",
         location: place,
         lat: place ? lat : null,

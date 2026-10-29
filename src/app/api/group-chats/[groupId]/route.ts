@@ -20,7 +20,7 @@ export async function GET(req: NextRequest, { params }: Params) {
   const group = await prisma.group.findUnique({
     where: { id: groupId },
     select: {
-      id: true, name: true, emoji: true, color: true,
+      id: true, name: true, emoji: true, imageUrl: true, color: true,
       members: { select: { role: true, chatLeft: true, user: { select: { id: true, name: true, email: true, image: true } } } },
     },
   })
@@ -30,6 +30,7 @@ export async function GET(req: NextRequest, { params }: Params) {
     groupId: group.id,
     name: group.name,
     emoji: group.emoji,
+    imageUrl: group.imageUrl,
     color: group.color,
     muted: me.chatMuted,
     left: me.chatLeft,

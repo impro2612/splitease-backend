@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     where: { userId: user.id },
     select: {
       chatMuted: true, chatLeft: true, chatReadAt: true, joinedAt: true,
-      group: { select: { id: true, name: true, emoji: true, color: true, createdAt: true, _count: { select: { members: true } } } },
+      group: { select: { id: true, name: true, emoji: true, imageUrl: true, color: true, createdAt: true, _count: { select: { members: true } } } },
     },
   })
 
@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       groupId: m.group.id,
       name: m.group.name,
       emoji: m.group.emoji,
+      imageUrl: m.group.imageUrl,
       color: m.group.color,
       memberCount: m.group._count.members,
       muted: m.chatMuted,

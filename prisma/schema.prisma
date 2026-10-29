@@ -184,6 +184,9 @@ model Group {
   description       String?
   color             String   @default("#6366f1")
   emoji             String   @default("💰")
+  // Optional group photo (Wikipedia / Unsplash) shown instead of the emoji; credit is JSON
+  imageUrl          String?
+  imageCredit       String?
   currency          String   @default("USD")
   smartDebtsEnabled Boolean  @default(false)
   location          String?

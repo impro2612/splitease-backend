@@ -5,6 +5,7 @@ import { getNetPerPerson } from "@/lib/balance"
 import { logActivity } from "@/lib/activity"
 import { geocode } from "@/lib/geocode"
 import { readJson, type JsonBody } from "@/lib/request"
+import { isAllowedImageUrl, parseCredit } from "@/lib/group-image"
 
 type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
 function expenseToApi(e: ExpenseRow) {
@@ -72,7 +73,11 @@ export async function PATCH(
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   const { id } = await params
-  const { name, description, emoji, color, currency, location, lat, lng, startDate, endDate } = await readJson<JsonBody>(req)
+  const { name, description, emoji, color, currency, location, lat, lng, startDate, endDate, imageUrl, imageCredit } = await readJson<JsonBody>(req)
+  // A photo replaces the emoji tile; null clears it (back to the emoji)
+  if (imageUrl !== undefined && imageUrl !== null && !isAllowedImageUrl(imageUrl)) {
+    return Response.json({ error: "Unsupported image" }, { status: 400 })
+  }
 
   const member = await prisma.groupMember.findUnique({
     where: { groupId_userId: { groupId: id, userId: user.id } },
@@ -142,6 +147,7 @@ export async function PATCH(
       ...(name !== undefined && { name: name.trim() }),
       ...(description !== undefined && { description }),
       ...(emoji !== undefined && { emoji }),
+      ...(imageUrl !== undefined && { imageUrl: imageUrl as string | null, imageCredit: imageUrl ? parseCredit(imageCredit) : null }),
       ...(color !== undefined && { color }),
       ...(currency !== undefined && { currency }),
       ...locationData,
