@@ -58,8 +58,9 @@ export async function wikipediaPlacePhotos(query: string): Promise<GroupImage[]>
     // Skip maps, flags, seals and diagrams — we want a photo of the place
     .filter((p) => !/(map|flag|locator|seal|emblem|logo|coat_of_arms|\.svg)/i.test(p.pageimage))
     .sort((a, b) => (a.index ?? 99) - (b.index ?? 99))
-    // The best match always; other results only if they're named after the place
-    .filter((p, i) => i === 0 || p.title.toLowerCase().includes(query.toLowerCase()))
+    // Only the best match: lower results are often other places with the same name
+    // (Manali, Chennai) or something nearby rather than the place itself
+    .slice(0, 1)
     .filter((p) => !/(bajaj|vehicle|car_|motorcycle|scooter|barricade|portrait)/i.test(p.pageimage))
     .map((p) => ({
       url: p.thumbnail.source,
