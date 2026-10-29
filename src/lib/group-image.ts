@@ -9,10 +9,15 @@ const DAY = 60 * 60 * 24
 
 // Only photos from these hosts may be saved on a group
 const ALLOWED_HOSTS = new Set(["upload.wikimedia.org", "thumb.wikimedia.org", "images.unsplash.com"])
+// Photos users upload themselves are served by this backend
+const APP_ORIGIN = "https://splitwithease.vercel.app"
+export const groupPhotoUrl = (id: string) => `${APP_ORIGIN}/api/group-photo/${id}`
+
 export function isAllowedImageUrl(url: unknown): url is string {
   if (typeof url !== "string" || url.length > 1000) return false
   try {
     const u = new URL(url)
+    if (url.startsWith(`${APP_ORIGIN}/api/group-photo/`) && /^\/api\/group-photo\/[a-z0-9]+$/.test(u.pathname)) return true
     return u.protocol === "https:" && ALLOWED_HOSTS.has(u.hostname)
   } catch {
     return false

@@ -53,6 +53,7 @@ model User {
   messageReactions        MessageReaction[]
   groupMessages           GroupMessage[]
   groupMessageReactions   GroupMessageReaction[]
+  groupPhotos             GroupPhoto[]
   borrowEntriesAsLender   BorrowEntry[] @relation("BorrowLender")
   borrowEntriesAsBorrower BorrowEntry[] @relation("BorrowBorrower")
   trips                   Trip[]
@@ -376,6 +377,20 @@ model GroupMessageReaction {
 
   @@unique([messageId, userId, emoji])
   @@index([messageId])
+}
+
+// A photo a user uploaded as a group picture, served at /api/group-photo/:id.
+// Kept apart from Group so group lists don't carry the image bytes.
+model GroupPhoto {
+  id         String   @id @default(cuid())
+  uploaderId String
+  mime       String
+  data       String   // base64, resized to a small square on the phone
+  createdAt  DateTime @default(now())
+
+  uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([uploaderId])
 }
 
 model Block {
