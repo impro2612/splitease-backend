@@ -8,7 +8,7 @@ const UA = "SplitIT/1.0 (https://splitwithease.vercel.app; group photos)"
 const DAY = 60 * 60 * 24
 
 // Only photos from these hosts may be saved on a group
-const ALLOWED_HOSTS = new Set(["upload.wikimedia.org", "images.unsplash.com"])
+const ALLOWED_HOSTS = new Set(["upload.wikimedia.org", "thumb.wikimedia.org", "images.unsplash.com"])
 export function isAllowedImageUrl(url: unknown): url is string {
   if (typeof url !== "string" || url.length > 1000) return false
   try {
