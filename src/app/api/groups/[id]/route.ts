@@ -209,6 +209,9 @@ export async function DELETE(
     meta: { groupName: groupToDelete?.name, groupEmoji: groupToDelete?.emoji },
   })
 
+  // The group's chat goes with it (explicit, in case FK cascades aren't enforced)
+  await prisma.groupMessageReaction.deleteMany({ where: { message: { groupId: id } } })
+  await prisma.groupMessage.deleteMany({ where: { groupId: id } })
   await prisma.group.delete({ where: { id } })
   return Response.json({ success: true }, { status: 200 })
 }

@@ -51,6 +51,8 @@ model User {
   personalBudgets         PersonalBudget[]
   personalSuggestions     PersonalSuggestion[]
   messageReactions        MessageReaction[]
+  groupMessages           GroupMessage[]
+  groupMessageReactions   GroupMessageReaction[]
   borrowEntriesAsLender   BorrowEntry[] @relation("BorrowLender")
   borrowEntriesAsBorrower BorrowEntry[] @relation("BorrowBorrower")
   trips                   Trip[]
@@ -199,6 +201,7 @@ model Group {
   settlements Settlement[]
   activities  Activity[]
   trips       Trip[]
+  messages    GroupMessage[]
 }
 
 model Activity {
@@ -225,6 +228,10 @@ model GroupMember {
   userId   String
   role     String   @default("MEMBER")
   joinedAt DateTime @default(now())
+  // Group chat: every member is in the group's chat; these are per-member chat settings
+  chatMuted  Boolean   @default(false)
+  chatLeft   Boolean   @default(false)
+  chatReadAt DateTime?
 
   group Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -331,6 +338,38 @@ model MessageReaction {
 
   message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+}
+
+// Group chat — one chat per group; membership is the group's membership
+model GroupMessage {
+  id        String   @id @default(cuid())
+  groupId   String
+  senderId  String
+  content   String   // AES-obfuscated on client with a key derived from the group ID (not E2E)
+  clientId  String
+  deleted   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  group     Group @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  sender    User  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  reactions GroupMessageReaction[]
+
+  @@unique([senderId, clientId])
+  @@index([groupId, createdAt])
+}
+
+model GroupMessageReaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message GroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([messageId, userId, emoji])
   @@index([messageId])
