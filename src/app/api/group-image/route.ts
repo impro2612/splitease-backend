@@ -30,11 +30,12 @@ export async function GET(req: NextRequest) {
   if (!name.trim() && !location.trim()) return Response.json({ images: [] })
 
   const places = placeQueries(name, location)
-  const [wiki, unsplash] = await Promise.all([
-    // Place photos don't page — the first page has them all
-    page === 1 ? Promise.all(places.map(wikipediaPlacePhotos)).then((r) => r.flat()) : Promise.resolve([] as GroupImage[]),
-    themePhotos(theme.trim() || places[0] || name, page),
-  ])
+  // Find the place first: if the group is about a real place, Unsplash should show that
+  // place too ("Goa trip" → photos of Goa, not of "trip")
+  const placeHits = await Promise.all(places.map(wikipediaPlacePhotos))
+  const placeIndex = placeHits.findIndex((r) => r.length > 0)
+  const wiki = page === 1 ? placeHits.flat() : [] // place photos don't page
+  const unsplash = await themePhotos(placeIndex >= 0 ? places[placeIndex] : theme.trim() || name, page)
 
   const seen = new Set<string>()
   const images = [...wiki, ...unsplash].filter((i) => !seen.has(i.url) && seen.add(i.url)).slice(0, 12)
