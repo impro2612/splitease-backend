@@ -3,6 +3,13 @@
 
 ## Database migrations
 
+> **Naming drift (checked 9 Nov 2026):** the production database was built by hand before
+> `prisma/migrations` existed, so some indexes carry different names from the ones in
+> `0_init` (`idx_ptxn_user_date` vs `PersonalTransaction_userId_date_idx`, `Message_convo_idx`,
+> `ExpenseReaction_unique`, `Block_*_idx`), and unique keys live as inline `UNIQUE` constraints
+> (`sqlite_autoindex_*`) rather than named unique indexes. Columns and constraints match the
+> schema; only the names differ. Don't "fix" this by re-running `0_init` against production.
+
 The schema lives in `prisma/schema.prisma`; `prisma/migrations/` is the history of SQL
 applied to Turso, starting from `0_init` (a baseline generated from the schema as it was
 when migrations were introduced — the production database already matched it, so it is

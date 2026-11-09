@@ -264,6 +264,10 @@ model Expense {
   createdBy User              @relation("CreatedBy", fields: [createdById], references: [id], onDelete: Cascade)
   splits    ExpenseSplit[]
   reactions ExpenseReaction[]
+
+  // Every group screen, balance and recap filters by group (and usually sorts by date)
+  @@index([groupId])
+  @@index([groupId, date])
 }
 
 model ExpenseSplit {
