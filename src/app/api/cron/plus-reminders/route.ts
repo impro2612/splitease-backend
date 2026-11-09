@@ -3,6 +3,7 @@ import { timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
 import { trialEnd } from "@/lib/plus"
 import { buildAppUrl, notifyUsers } from "@/lib/notify"
+import { captureError } from "@/lib/monitoring"
 
 const DAY = 24 * 60 * 60 * 1000
 // Reminder stages, largest first: a stage is sent once, when days left drops to it
@@ -62,7 +63,9 @@ export async function GET(req: NextRequest) {
     await prisma.user.update({ where: { id: u.id }, data: { plusReminder: stage } })
     if (u.pushDevices.length) {
       const m = MESSAGES[stage]
-      await notifyUsers([u], m.title, m.body, { type: "plus_trial", url: buildAppUrl("plus") }).catch(() => {})
+      // The stage is already marked sent, so a lost push is worth a report
+      await notifyUsers([u], m.title, m.body, { type: "plus_trial", url: buildAppUrl("plus") })
+        .catch((e) => captureError(e, { where: "cron/plus-reminders trial", userId: u.id, stage }))
       sent++
     }
   }
@@ -79,7 +82,8 @@ export async function GET(req: NextRequest) {
     await prisma.user.update({ where: { id: u.id }, data: { plusEndReminder: stage } })
     if (u.pushDevices.length) {
       const m = ENDING[stage]
-      await notifyUsers([u], m.title, m.body, { type: "plus_ending", url: buildAppUrl("plus") }).catch(() => {})
+      await notifyUsers([u], m.title, m.body, { type: "plus_ending", url: buildAppUrl("plus") })
+        .catch((e) => captureError(e, { where: "cron/plus-reminders ending", userId: u.id, stage }))
       endingSent++
     }
   }

@@ -1,4 +1,4 @@
-import { sendPushNotification } from "@/lib/push"
+import { sendPushMessages } from "@/lib/push"
 
 type PushUser = {
   id: string
@@ -31,19 +31,13 @@ export async function notifyUsers(
   excludeUserIds: string[] = []
 ) {
   const excluded = new Set(excludeUserIds)
-  const uniqueTokens = new Set<string>()
-
-  await Promise.all(
-    users.map(async (user) => {
-      if (excluded.has(user.id)) return
-      const tokens = user.pushDevices?.map((device) => device.token).filter(Boolean) ?? []
-      await Promise.all(
-        tokens.map(async (token) => {
-          if (uniqueTokens.has(token)) return
-          uniqueTokens.add(token)
-          await sendPushNotification(token, title, body, data)
-        })
-      )
-    })
-  )
+  // Dedupe first so a token shared by two users gets one push, then send everything
+  // in a single batched call instead of one HTTPS round-trip per device
+  const tokens = new Set<string>()
+  for (const user of users) {
+    if (excluded.has(user.id)) continue
+    for (const device of user.pushDevices ?? []) if (device.token) tokens.add(device.token)
+  }
+  if (!tokens.size) return
+  await sendPushMessages([...tokens].map((to) => ({ to, title, body, data })))
 }

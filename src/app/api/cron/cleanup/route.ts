@@ -2,6 +2,8 @@ import { NextRequest } from "next/server"
 import { timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
 import { groupPhotoIdFromUrl } from "@/lib/group-photo"
+import { processPushReceipts } from "@/lib/push-receipts"
+import { captureError } from "@/lib/monitoring"
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -41,9 +43,13 @@ export async function GET(req: NextRequest) {
     where: { createdAt: { lt: new Date(now.getTime() - HOUR) }, id: { notIn: keep } },
   })
 
+  // Push receipts ride along here: Hobby allows only two scheduled crons
+  const pushReceipts = await processPushReceipts().catch((e) => { captureError(e, { where: "cron/cleanup pushReceipts" }); return null })
+
   return Response.json({
     passwordResets: passwordResets.count,
     refreshTokens: refreshTokens.count,
     groupPhotos: groupPhotos.count,
+    pushReceipts,
   })
 }

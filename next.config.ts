@@ -1,4 +1,5 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from "next"
+import { withSentryConfig } from "@sentry/nextjs/config"
 
 const securityHeaders = [
   { key: "X-Content-Type-Options",  value: "nosniff" },
@@ -14,7 +15,7 @@ const securityHeaders = [
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https: blob:",
       "font-src 'self' data:",
-      "connect-src 'self' https://*.pusher.com wss://*.pusher.com https://sockjs-ap2.pusher.com https://oauth2.googleapis.com https://apis.google.com",
+      "connect-src 'self' https://*.pusher.com wss://*.pusher.com https://sockjs-ap2.pusher.com https://oauth2.googleapis.com https://apis.google.com https://*.ingest.sentry.io https://*.sentry.io",
       "frame-src 'none'",
       "object-src 'none'",
     ].join("; "),
@@ -25,6 +26,15 @@ const nextConfig: NextConfig = {
   async headers() {
     return [{ source: "/(.*)", headers: securityHeaders }]
   },
-};
+}
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  silent: true,
+  telemetry: false,
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  widenClientFileUpload: false,
+  // No token = skip source-map upload entirely so builds stay green before Sentry exists
+  sourcemaps: { disable: !process.env.SENTRY_AUTH_TOKEN },
+})

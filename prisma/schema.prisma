@@ -105,6 +105,15 @@ model PushDevice {
   @@index([userId])
 }
 
+// Expo push ticket awaiting a delivery receipt; drained by /api/cron/push-receipts
+model PushTicket {
+  id        String   @id // Expo ticket id
+  token     String // the device token the ticket was for
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String
