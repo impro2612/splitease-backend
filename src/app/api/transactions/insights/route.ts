@@ -94,7 +94,7 @@ export async function GET(req: NextRequest) {
     try {
       const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY)
       const model = genAI.getGenerativeModel({
-        model: "gemini-1.5-flash",
+        model: "gemini-2.5-flash-lite",
         generationConfig: { maxOutputTokens: 300, temperature: 0.3 },
       })
 
@@ -104,7 +104,7 @@ Top:${topCategories.map((c)=>`${c.category}₹${c.amount.toFixed(0)}`).join(",")
 Leaks:${spendingLeaks.map((l)=>`${l.description}×${l.count}=₹${l.total.toFixed(0)}`).join(",")||"none"}
 Alerts:${budgetAlerts.map((a)=>`${a.category}+₹${a.overspent.toFixed(0)}`).join(",")||"none"}`
 
-      const result = await model.generateContent(prompt)
+      const result = await model.generateContent(prompt, { signal: AbortSignal.timeout(15_000) })
       aiSummary = result.response.text().trim()
     } catch { aiSummary = "" }
   }

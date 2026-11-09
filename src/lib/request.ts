@@ -31,6 +31,23 @@ export function isSingleEmoji(value: unknown): value is string {
 
 export const CURRENCY_RE = /^[A-Z]{3}$/
 
+/** CSS hex colour as the apps send it: #rrggbb. */
+export const COLOR_RE = /^#[0-9a-fA-F]{6}$/
+
+/** Expense category as sent by the apps: a short free-text label ("food", "transport"...). */
+export function parseCategory(value: unknown): string | undefined | null {
+  if (value === undefined) return undefined
+  if (typeof value !== "string") return null
+  const trimmed = value.trim()
+  return trimmed && trimmed.length <= 40 ? trimmed : null
+}
+
+/** True when `value` is absent/null or a string whose trimmed length is within `max`. */
+export function isOptionalString(value: unknown, max: number): value is string | null | undefined {
+  if (value === undefined || value === null) return true
+  return typeof value === "string" && value.trim().length <= max
+}
+
 /** Untyped JSON request body — every field is validated by the route before use. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type JsonBody = Record<string, any>

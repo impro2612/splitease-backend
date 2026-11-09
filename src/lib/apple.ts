@@ -7,7 +7,7 @@ import { SignJWT, importPKCS8 } from "jose"
 // "Sign in with Apple" key); without them these helpers do nothing.
 const CLIENT_ID = (process.env.APPLE_BUNDLE_ID ?? "com.splititapp.ios").split(",")[0].trim()
 
-export function appleServerConfigured(): boolean {
+function appleServerConfigured(): boolean {
   return !!(process.env.APPLE_TEAM_ID && process.env.APPLE_KEY_ID && process.env.APPLE_PRIVATE_KEY)
 }
 

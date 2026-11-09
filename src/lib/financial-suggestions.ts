@@ -360,7 +360,7 @@ Monthly data:
 - Highest spend day: ${highestDay ? `${highestDay.day} ₹${highestDay.amount.toFixed(0)}` : "none"}
 `.trim()
 
-    const result = await model.generateContent(prompt)
+    const result = await model.generateContent(prompt, { signal: AbortSignal.timeout(15_000) })
     const text = result.response.text().trim()
     const match = text.match(/\{[\s\S]*\}/)
     if (!match) return fallback

@@ -5,6 +5,9 @@ import { prisma } from "@/lib/prisma"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { EMAIL_RE, normalizeEmail } from "@/lib/email"
 import { revokeAppleToken } from "@/lib/apple"
+import { readJson, type JsonBody } from "@/lib/request"
+import { getDisplayName } from "@/lib/notify"
+import { DELETED_USER_NAME, scrubActivityMeta } from "@/lib/activity-scrub"
 
 // DELETE /api/auth/me — delete account.
 // Shared group history (expenses, splits, settlements) belongs to the other members too,
@@ -18,9 +21,11 @@ export async function DELETE(req: NextRequest) {
   try {
     // Apple requires revoking Sign in with Apple when the account is deleted (best effort:
     // a failed revoke must not block the user from deleting their account)
-    const apple = await prisma.user.findUnique({ where: { id: user.id }, select: { appleRefreshToken: true } })
-    if (apple?.appleRefreshToken) await revokeAppleToken(apple.appleRefreshToken)
+    const before = await prisma.user.findUnique({ where: { id: user.id }, select: { appleRefreshToken: true, name: true, email: true } })
+    if (before?.appleRefreshToken) await revokeAppleToken(before.appleRefreshToken)
+    const oldDisplayName = before ? getDisplayName({ id: user.id, name: before.name, email: before.email }) : null
 
+    let sharedGroupIds: string[] = []
     await prisma.$transaction(async (tx) => {
       const uid = user.id
 
@@ -34,6 +39,7 @@ export async function DELETE(req: NextRequest) {
 
       // Shared groups: hand admin/ownership to a remaining member, keep the ghost as a plain member
       const shared = memberships.filter((m) => !soloGroupIds.includes(m.groupId)).map((m) => m.groupId)
+      sharedGroupIds = shared
       for (const groupId of shared) {
         const otherAdmins = await tx.groupMember.count({ where: { groupId, role: "ADMIN", userId: { not: uid } } })
         if (otherAdmins === 0) {
@@ -54,6 +60,8 @@ export async function DELETE(req: NextRequest) {
       // Private content and relationships
       await tx.friend.deleteMany({ where: { OR: [{ requesterId: uid }, { addresseeId: uid }] } })
       await tx.message.deleteMany({ where: { OR: [{ senderId: uid }, { receiverId: uid }] } })
+      // Group chat rows stay (other members' threads reference them) but lose their content
+      await tx.groupMessage.updateMany({ where: { senderId: uid }, data: { deleted: true, content: "" } })
       await tx.block.deleteMany({ where: { OR: [{ blockerId: uid }, { blockedId: uid }] } })
       await tx.borrowEntry.deleteMany({ where: { OR: [{ lenderId: uid }, { borrowerId: uid }] } })
       await tx.personalTransaction.deleteMany({ where: { userId: uid } })
@@ -71,7 +79,7 @@ export async function DELETE(req: NextRequest) {
       await tx.user.update({
         where: { id: uid },
         data: {
-          name: "Deleted user",
+          name: DELETED_USER_NAME,
           email: `deleted-${uid}@deleted.invalid`,
           password: null,
           googleId: null,
@@ -85,10 +93,42 @@ export async function DELETE(req: NextRequest) {
       })
     })
 
+    // Display names captured in the activity feed. Best effort, outside the transaction
+    // so a large history can't push the account deletion past the transaction timeout.
+    if (oldDisplayName) {
+      try {
+        await scrubActivityNames(user.id, oldDisplayName, sharedGroupIds)
+      } catch (err) {
+        console.error("[me/DELETE] activity scrub failed:", err)
+      }
+    }
+
     return Response.json({ success: true }, { status: 200 })
   } catch (err) {
     console.error(err)
     return Response.json({ error: "Failed to delete account" }, { status: 500 })
+  }
+}
+
+async function scrubActivityNames(uid: string, oldName: string, groupIds: string[]) {
+  // The name as it appears inside the JSON string (quotes/backslashes escaped)
+  const needle = JSON.stringify(oldName).slice(1, -1)
+  const rows = await prisma.activity.findMany({
+    where: {
+      OR: [
+        { targetUserId: uid },
+        { actorId: uid, meta: { contains: needle } },
+        ...(groupIds.length ? [{ groupId: { in: groupIds }, meta: { contains: needle } }] : []),
+      ],
+    },
+    select: { id: true, meta: true, targetUserId: true },
+  })
+  const updates = rows.flatMap((r) => {
+    const meta = scrubActivityMeta(r.meta, oldName, r.targetUserId === uid)
+    return meta === null ? [] : [{ id: r.id, meta }]
+  })
+  for (let i = 0; i < updates.length; i += 50) {
+    await prisma.$transaction(updates.slice(i, i + 50).map((u) => prisma.activity.update({ where: { id: u.id }, data: { meta: u.meta } })))
   }
 }
 
@@ -107,8 +147,7 @@ export async function PATCH(req: NextRequest) {
   if (!user) return Response.json({ error: "Unauthorized" }, { status: 401 })
 
   try {
-    const body = await req.json()
-    const { name, email, currentPassword, newPassword, image } = body
+    const { name, email, currentPassword, newPassword, image } = await readJson<JsonBody>(req)
 
     const updateData: Record<string, unknown> = {}
 

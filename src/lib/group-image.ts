@@ -96,8 +96,6 @@ export function photoQueries(theme: string): string[] {
   return [...new Set(out.filter(Boolean))]
 }
 
-export const unsplashEnabled = () => !!process.env.UNSPLASH_ACCESS_KEY
-
 export async function unsplashPhotos(query: string, page = 1): Promise<GroupImage[]> {
   const key = process.env.UNSPLASH_ACCESS_KEY
   if (!key || !query.trim()) return []

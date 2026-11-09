@@ -128,11 +128,11 @@ export async function POST(req: NextRequest) {
     }).catch(() => {})
 
     if (addressee) {
-      await notifyUsers([addressee], "New friend request", `${getDisplayName(user)} sent you a friend request.`, {
+      after(() => notifyUsers([addressee], "New friend request", `${getDisplayName(user)} sent you a friend request.`, {
         type: "friend_request",
         friendRequestId: friend.id,
         url: buildAppUrl("friends"),
-      })
+      }))
     }
 
     after(() => logActivity({

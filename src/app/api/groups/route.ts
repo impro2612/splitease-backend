@@ -5,7 +5,8 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { logActivity } from "@/lib/activity"
 import { getNetPerPerson } from "@/lib/balance"
 import { geocode } from "@/lib/geocode"
-import { CURRENCY_RE, parseOptionalDate, readJson } from "@/lib/request"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { COLOR_RE, CURRENCY_RE, isOptionalString, isSingleEmoji, parseOptionalDate, readJson } from "@/lib/request"
 
 // GET /api/groups — group cards. Returns the caller's net balance per currency
 // (expenses AND settlements, computed server-side) instead of every expense with
@@ -69,6 +70,11 @@ export async function POST(req: NextRequest) {
     if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
       return Response.json({ error: "Invalid currency" }, { status: 400 })
     }
+    if (emoji !== undefined && !isSingleEmoji(emoji)) return Response.json({ error: "Emoji must be a single emoji" }, { status: 400 })
+    if (color !== undefined && (typeof color !== "string" || !COLOR_RE.test(color))) {
+      return Response.json({ error: "Color must be a hex value like #6366f1" }, { status: 400 })
+    }
+    if (!isOptionalString(location, 120)) return Response.json({ error: "Location is too long" }, { status: 400 })
     const start = parseOptionalDate(startDate)
     const end = parseOptionalDate(endDate)
     if (start === undefined) return Response.json({ error: "Invalid startDate" }, { status: 400 })
@@ -78,8 +84,9 @@ export async function POST(req: NextRequest) {
     const place = typeof location === "string" && location.trim() ? location.trim() : null
     let lat = typeof clientLat === "number" && Number.isFinite(clientLat) ? clientLat : null
     let lng = typeof clientLng === "number" && Number.isFinite(clientLng) ? clientLng : null
-    // only geocode if mobile didn't already send coordinates
-    if (place && (lat === null || lng === null)) {
+    // only geocode if mobile didn't already send coordinates. Nominatim is a shared
+    // free service, so a user who exceeds the lookup quota just gets no map pin.
+    if (place && (lat === null || lng === null) && await checkRateLimit(`geocode:${user.id}`, 10, 60 * 60 * 1000)) {
       const geo = await geocode(place)
       lat = geo?.lat ?? null
       lng = geo?.lng ?? null

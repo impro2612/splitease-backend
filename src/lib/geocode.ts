@@ -5,7 +5,7 @@ export async function geocode(location: string): Promise<{ lat: number; lng: num
   try {
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(location)}&format=json&limit=1`,
-      { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(5_000) }
+      { headers: { "User-Agent": USER_AGENT }, signal: AbortSignal.timeout(4_000) }
     )
     if (!res.ok) return null
     const data = await res.json()

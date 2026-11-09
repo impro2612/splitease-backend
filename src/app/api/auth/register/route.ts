@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
         where: { OR: [{ phoneNormalized: normalizedPhone }, { phone }] },
       })
       if (existingPhone) {
-        return Response.json({ error: "This phone number is already registered" }, { status: 409 })
+        return Response.json({ error: "This phone number can't be used" }, { status: 409 })
       }
       phoneData = { phone, phoneNormalized: normalizedPhone }
     }

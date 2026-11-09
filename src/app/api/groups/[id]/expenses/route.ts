@@ -5,8 +5,9 @@ import { Prisma } from "@/generated/prisma/client"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { CURRENCY_RE, parseOptionalDate, readJson, type JsonBody } from "@/lib/request"
+import { CURRENCY_RE, parseCategory, parseOptionalDate, readJson, type JsonBody } from "@/lib/request"
 import { buildEqualSplits, buildExactSplits, buildPercentageSplits, type SplitRow } from "@/lib/splits"
+import { expenseToApi } from "@/lib/expense-api"
 
 const MAX_AMOUNT = 1_000_000
 
@@ -14,16 +15,6 @@ const expenseInclude = {
   paidBy: { select: { id: true, name: true, email: true, image: true } },
   splits: { include: { user: { select: { id: true, name: true, email: true, image: true } } } },
 } as const
-
-/** Convert a DB expense (amounts in cents) to the API shape (amounts in dollars). */
-type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
-function expenseToApi(e: ExpenseRow) {
-  return {
-    ...e,
-    amount: e.amount / 100,
-    splits: e.splits?.map((s) => ({ ...s, amount: s.amount / 100 })),
-  }
-}
 
 export async function POST(
   req: NextRequest,
@@ -80,6 +71,8 @@ export async function POST(
     if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
       return Response.json({ error: "Invalid currency" }, { status: 400 })
     }
+    const parsedCategory = parseCategory(category)
+    if (parsedCategory === null) return Response.json({ error: "Category must be text of at most 40 characters" }, { status: 400 })
 
     const [groupData, groupMembers] = await Promise.all([
       prisma.group.findUnique({ where: { id: groupId }, select: { currency: true, name: true, emoji: true } }),
@@ -118,7 +111,7 @@ export async function POST(
           description: description.trim(),
           amount: totalCents, // stored as cents
           currency: expenseCurrency,
-          category: typeof category === "string" && category ? category : "general",
+          category: parsedCategory ?? "general",
           paidById,
           createdById: user.id,
           splitType,

@@ -215,3 +215,12 @@ export function simplifyDebts(netPerPerson: Map<string, number>): NetBalance[] {
 
   return result
 }
+
+/**
+ * Cents to record for a settlement: never more than what is actually owed, never
+ * negative. A requested amount of 0 (or a non-finite one) records nothing.
+ */
+export function clampSettlementCents(owedCents: number, requestedCents: number): number {
+  if (!Number.isFinite(owedCents) || !Number.isFinite(requestedCents)) return 0
+  return Math.max(0, Math.min(Math.round(requestedCents), Math.round(owedCents)))
+}

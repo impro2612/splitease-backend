@@ -87,3 +87,24 @@ export function buildEqualSplits(memberIds: string[], totalCents: number, paidBy
   const extra = totalUnits - base * n
   return memberIds.map((userId, i) => ({ userId, amount: (base + (i < extra ? 1 : 0)) * unit, paid: userId === paidById }))
 }
+
+/**
+ * Rescales existing splits (in cents) proportionally to a new total, keeping the sum exact:
+ * each share is floored, then the leftover cents are handed out one per row from the top.
+ * Works for any currency because everything is already in minor units.
+ */
+export function rescaleSplits<T extends { userId: string; amount: number }>(
+  existing: T[],
+  oldCents: number,
+  newCents: number,
+  paidById: string
+): SplitRow[] {
+  if (existing.length === 0 || oldCents <= 0) return []
+  const rawCents = existing.map((s) => Math.floor((s.amount / oldCents) * newCents))
+  let remainder = newCents - rawCents.reduce((a, b) => a + b, 0)
+  return existing.map((s, i) => {
+    const extra = remainder > 0 ? 1 : 0
+    if (remainder > 0) remainder--
+    return { userId: s.userId, amount: rawCents[i] + extra, paid: s.userId === paidById }
+  })
+}

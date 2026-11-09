@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
 import { notifyPlusChanged, syncPlusFromRevenueCat } from "@/lib/revenuecat"
+import { decideWebhookFallback } from "@/lib/plus-webhook"
 
 function authorized(req: NextRequest): boolean {
   const expected = process.env.REVENUECAT_WEBHOOK_AUTH
@@ -28,11 +29,14 @@ export async function POST(req: NextRequest) {
   if (!user) return Response.json({ ok: true }) // not one of ours (e.g. sandbox test user)
 
   const synced = await syncPlusFromRevenueCat(user.id)
-  if (synced === undefined && typeof event.expiration_at_ms === "number") {
+  const decision = decideWebhookFallback(synced, event, !!process.env.REVENUECAT_SECRET_KEY)
+  if (decision.action === "retry") {
+    // Nothing usable to store: a non-2xx makes RevenueCat redeliver once the lookup works
+    return Response.json({ error: "Subscriber lookup unavailable, retry" }, { status: 503 })
+  }
+  if (decision.action === "apply") {
     // Fallback when the REST lookup isn't available
-    const until = new Date(event.expiration_at_ms)
-    const willRenew = event.type === "CANCELLATION" ? false
-      : ["RENEWAL", "UNCANCELLATION", "INITIAL_PURCHASE", "PRODUCT_CHANGE"].includes(event.type) ? true : undefined
+    const { until, willRenew } = decision
     await prisma.user.update({
       where: { id: user.id },
       data: { plusUntil: until, ...(willRenew === undefined ? {} : { plusWillRenew: willRenew, plusEndReminder: null }) },

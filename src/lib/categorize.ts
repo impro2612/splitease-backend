@@ -644,7 +644,7 @@ ${chunk.map((item) => JSON.stringify({
       generationConfig: { maxOutputTokens: 2048, temperature: 0 },
     })
 
-    const response = await model.generateContent(prompt)
+    const response = await model.generateContent(prompt, { signal: AbortSignal.timeout(15_000) })
     const text = response.response.text().trim()
     const jsonMatch = text.match(/\[[\s\S]*\]/)
     if (!jsonMatch) return
@@ -673,21 +673,6 @@ ${chunk.map((item) => JSON.stringify({
     console.error("Gemini classify error:", err)
     return resultMap
   }
-}
-
-export async function batchCategorizeWithAI(descriptions: string[]): Promise<Record<string, Category>> {
-  const inputs = descriptions.map((description) => ({
-    key: description,
-    rawDescription: description,
-    description,
-    type: "debit" as const,
-    category: "Miscellaneous" as const,
-    intent: "miscellaneous" as const,
-  }))
-  const refined = await batchRefineTransactionsWithAI(inputs)
-  const out: Record<string, Category> = {}
-  for (const [key, value] of Object.entries(refined)) out[key] = value.category
-  return out
 }
 
 export function makeHash(userId: string, date: string, amount: number, rawDesc: string): string {

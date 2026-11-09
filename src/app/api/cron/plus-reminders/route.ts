@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import { timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
 import { trialEnd } from "@/lib/plus"
 import { buildAppUrl, notifyUsers } from "@/lib/notify"
@@ -30,10 +31,15 @@ function dueStage(end: Date, now: Date): number | undefined {
 // GET /api/cron/plus-reminders — daily Vercel cron. Sends the 15 / 7 / 1-day trial
 // reminders (tracked in User.plusReminder) and subscription-ending reminders
 // (User.plusEndReminder), each stage at most once per user.
+function authorized(req: NextRequest): boolean {
+  const secret = process.env.CRON_SECRET
+  if (!secret) return false
+  const a = Buffer.from(req.headers.get("authorization") ?? ""), b = Buffer.from(`Bearer ${secret}`)
+  return a.length === b.length && timingSafeEqual(a, b)
+}
+
 export async function GET(req: NextRequest) {
-  if (!process.env.CRON_SECRET || req.headers.get("authorization") !== `Bearer ${process.env.CRON_SECRET}`) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  if (!authorized(req)) return Response.json({ error: "Unauthorized" }, { status: 401 })
   const now = new Date()
   const users = await prisma.user.findMany({
     where: {

@@ -3,7 +3,7 @@ import { OAuth2Client } from "google-auth-library"
 import { prisma } from "@/lib/prisma"
 import { normalizeEmail } from "@/lib/email"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { clientIp } from "@/lib/request"
+import { clientIp, readJson, type JsonBody } from "@/lib/request"
 import { issueTokenPair } from "@/lib/tokens"
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID)
@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     if (!await checkRateLimit(`google-auth:${clientIp(req)}`, 20, 15 * 60 * 1000)) {
       return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 })
     }
-    const { idToken, mode } = await req.json()
+    const { idToken, mode } = await readJson<JsonBody>(req)
     if (!idToken) return Response.json({ error: "idToken required" }, { status: 400 })
 
     // Verify the ID token using google-auth-library (production-safe, uses Google's public certs)

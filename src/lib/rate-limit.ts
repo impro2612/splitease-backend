@@ -8,10 +8,20 @@
 type Window = { timestamps: number[]; windowMs: number; max: number }
 const store = new Map<string, Window>()
 
-function inMemoryRateLimit(key: string, max: number, windowMs: number): boolean {
-  const now = Date.now()
+// Keys whose whole window has elapsed are dropped whenever a new key is inserted, so the
+// Map can't grow without bound on a long-lived instance (one unique key per IP/user).
+function pruneExpired(now: number) {
+  for (const [key, entry] of store) {
+    const last = entry.timestamps[entry.timestamps.length - 1]
+    if (last === undefined || now - last >= entry.windowMs) store.delete(key)
+  }
+}
+
+/** In-memory sliding window. Exported for tests; `now` is injectable for the same reason. */
+export function inMemoryRateLimit(key: string, max: number, windowMs: number, now = Date.now()): boolean {
   const entry = store.get(key)
   if (!entry) {
+    pruneExpired(now)
     store.set(key, { timestamps: [now], windowMs, max })
     return true
   }
@@ -19,6 +29,11 @@ function inMemoryRateLimit(key: string, max: number, windowMs: number): boolean 
   if (entry.timestamps.length >= max) return false
   entry.timestamps.push(now)
   return true
+}
+
+/** Number of keys currently held by the in-memory store (tests). */
+export function inMemoryStoreSize(): number {
+  return store.size
 }
 
 async function upstashRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {

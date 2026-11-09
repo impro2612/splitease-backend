@@ -3,7 +3,7 @@ import { createRemoteJWKSet, jwtVerify } from "jose"
 import { prisma } from "@/lib/prisma"
 import { normalizeEmail } from "@/lib/email"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { clientIp } from "@/lib/request"
+import { clientIp, readJson, type JsonBody } from "@/lib/request"
 import { issueTokenPair } from "@/lib/tokens"
 import { exchangeAppleCode } from "@/lib/apple"
 
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
     if (!await checkRateLimit(`apple-auth:${clientIp(req)}`, 20, 15 * 60 * 1000)) {
       return Response.json({ error: "Too many attempts. Please try again later." }, { status: 429 })
     }
-    const { identityToken, fullName, mode, authorizationCode } = await req.json()
+    const { identityToken, fullName, mode, authorizationCode } = await readJson<JsonBody>(req)
     if (!identityToken || typeof identityToken !== "string") {
       return Response.json({ error: "identityToken required" }, { status: 400 })
     }

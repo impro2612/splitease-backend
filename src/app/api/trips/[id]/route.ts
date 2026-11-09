@@ -3,7 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
-import { CURRENCY_RE, type JsonBody } from "@/lib/request"
+import { CURRENCY_RE, isSingleEmoji, type JsonBody } from "@/lib/request"
 
 type TripWithDetails = Prisma.TripGetPayload<{
   include: {
@@ -138,6 +138,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   }
   if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
     return Response.json({ error: "Invalid currency" }, { status: 400 })
+  }
+  if (emoji !== undefined && !isSingleEmoji(emoji)) {
+    return Response.json({ error: "Emoji must be a single emoji" }, { status: 400 })
   }
   if (totalBudget !== undefined && (typeof totalBudget !== "number" || !Number.isFinite(totalBudget) || totalBudget <= 0)) {
     return Response.json({ error: "totalBudget must be a positive finite number" }, { status: 400 })

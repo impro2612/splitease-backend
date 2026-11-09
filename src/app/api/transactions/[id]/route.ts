@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
+import { readJson } from "@/lib/request"
 
 type Params = { params: Promise<{ id: string }> }
 
@@ -14,9 +15,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   if (locked) return locked
 
   const { id } = await params
-  const { category } = await req.json()
+  const { category } = await readJson<{ category: string }>(req)
 
-  if (!CATEGORIES.includes(category)) {
+  if (typeof category !== "string" || !(CATEGORIES as readonly string[]).includes(category)) {
     return Response.json({ error: "Invalid category" }, { status: 400 })
   }
 

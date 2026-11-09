@@ -3,19 +3,11 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
-import { CURRENCY_RE, parseOptionalDate, readJson, type JsonBody } from "@/lib/request"
-import { buildExactSplits } from "@/lib/splits"
+import { CURRENCY_RE, parseCategory, parseOptionalDate, readJson, type JsonBody } from "@/lib/request"
+import { buildExactSplits, rescaleSplits } from "@/lib/splits"
+import { expenseToApi } from "@/lib/expense-api"
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
-
-type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
-function expenseToApi(e: ExpenseRow) {
-  return {
-    ...e,
-    amount: e.amount / 100,
-    splits: e.splits?.map((s) => ({ ...s, amount: s.amount / 100 })),
-  }
-}
 
 // PATCH /api/groups/[id]/expenses/[expenseId]
 export async function PATCH(req: NextRequest, { params }: Params) {
@@ -53,6 +45,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (reqSplitType !== undefined && !["EQUAL", "EXACT", "PERCENTAGE"].includes(reqSplitType)) {
       return Response.json({ error: "Invalid split type" }, { status: 400 })
     }
+    const parsedCategory = parseCategory(category)
+    if (parsedCategory === null) return Response.json({ error: "Category must be text of at most 40 characters" }, { status: 400 })
 
     const newAmountCents = numAmount !== undefined ? Math.round(numAmount * 100) : expense.amount
     const newPaidById = paidById ?? expense.paidById
@@ -95,7 +89,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           where: { id: expenseId },
           data: {
             ...(description !== undefined && { description: description.trim() }),
-            ...(category !== undefined && { category }),
+            ...(parsedCategory !== undefined && { category: parsedCategory }),
             ...(parsedDate && { date: parsedDate }),
             ...(currency !== undefined && { currency }),
           },
@@ -138,15 +132,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       const existingSplits = await prisma.expenseSplit.findMany({ where: { expenseId } })
       if (amountChanged) {
-        const oldCents = expense.amount
-        const rawCents = existingSplits.map((s) => Math.floor((s.amount / oldCents) * newAmountCents))
-        const rawSum = rawCents.reduce((a, b) => a + b, 0)
-        let remainder = newAmountCents - rawSum
-        newSplitData = existingSplits.map((s, i) => {
-          const extra = remainder > 0 ? 1 : 0
-          if (remainder > 0) remainder--
-          return { userId: s.userId, amount: rawCents[i] + extra, paid: s.userId === newPaidById }
-        })
+        newSplitData = rescaleSplits(existingSplits, expense.amount, newAmountCents, newPaidById)
       } else {
         newSplitData = existingSplits.map((s) => ({
           userId: s.userId, amount: s.amount, paid: s.userId === newPaidById,
@@ -162,7 +148,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           ...(description !== undefined && { description: description.trim() }),
           ...(newAmountCents !== expense.amount && { amount: newAmountCents }),
           ...(reqSplitType !== undefined && { splitType: reqSplitType }),
-          ...(category !== undefined && { category }),
+          ...(parsedCategory !== undefined && { category: parsedCategory }),
           ...(paidById !== undefined && { paidById }),
           ...(parsedDate && { date: parsedDate }),
           ...(currency !== undefined && { currency }),

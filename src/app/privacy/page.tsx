@@ -44,6 +44,7 @@ const SECTIONS: LegalSection[] = [
       "People in your groups see your name, photo and the expenses and settlements in those groups.",
       "Friends see your name, email, photo, chats you send them and IOUs you record with them. People who search for you can find you by name, email or phone number.",
       "Your My Spending data, Spend Diary, trips and Plus status are visible only to you.",
+      "Group pictures are served from long, unguessable links that do not require signing in, so anyone who is given such a link can view that picture.",
     ]],
   },
   {
@@ -95,7 +96,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
-      updated="19 October 2026"
+      updated="9 November 2026"
       intro="SplitIT helps you split shared expenses with friends and keep track of your own spending. This policy explains what information the SplitIT apps and website collect, why, and the choices you have."
       sections={SECTIONS}
     />

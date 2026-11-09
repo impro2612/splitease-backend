@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
+import { readJson } from "@/lib/request"
 
 // PATCH /api/spend-diary/[id] — rename diary
 export async function PATCH(
@@ -14,8 +15,8 @@ export async function PATCH(
   if (locked) return locked
 
   const { id } = await params
-  const { title } = await req.json()
-  if (!title?.trim()) return Response.json({ error: "title required" }, { status: 400 })
+  const { title } = await readJson<{ title: string }>(req)
+  if (typeof title !== "string" || !title.trim()) return Response.json({ error: "title required" }, { status: 400 })
 
   const diary = await prisma.spendDiary.findFirst({ where: { id, userId: user.id } })
   if (!diary) return Response.json({ error: "Not found" }, { status: 404 })

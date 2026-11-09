@@ -1,7 +1,7 @@
 import { NextRequest, after } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { prisma } from "@/lib/prisma"
-import { buildBalanceMap, getPairwiseNetCents, getNetPerPerson, simplifyDebts } from "@/lib/balance"
+import { buildBalanceMap, clampSettlementCents, getPairwiseNetCents, getNetPerPerson, simplifyDebts } from "@/lib/balance"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
 import { checkRateLimit } from "@/lib/rate-limit"
@@ -98,7 +98,7 @@ export async function POST(
           groupId,
           fromUserId,
           toUserId,
-          amount: Math.min(requestedCents, owedCents), // stored in cents, never more than owed
+          amount: clampSettlementCents(owedCents, requestedCents), // stored in cents, never more than owed
           currency: settleCurrency,
           note: note?.trim() || null,
         },

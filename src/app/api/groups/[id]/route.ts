@@ -4,17 +4,10 @@ import { prisma } from "@/lib/prisma"
 import { getNetPerPerson } from "@/lib/balance"
 import { logActivity } from "@/lib/activity"
 import { geocode } from "@/lib/geocode"
-import { readJson, type JsonBody } from "@/lib/request"
+import { checkRateLimit } from "@/lib/rate-limit"
+import { COLOR_RE, CURRENCY_RE, isOptionalString, isSingleEmoji, readJson, type JsonBody } from "@/lib/request"
 import { isAllowedImageUrl, parseCredit } from "@/lib/group-image"
-
-type ExpenseRow = { amount: number; splits?: { amount: number }[] } & Record<string, unknown>
-function expenseToApi(e: ExpenseRow) {
-  return {
-    ...e,
-    amount: e.amount / 100,
-    splits: e.splits?.map((s) => ({ ...s, amount: s.amount / 100 })),
-  }
-}
+import { expenseToApi } from "@/lib/expense-api"
 
 export async function GET(
   req: NextRequest,
@@ -94,6 +87,9 @@ export async function PATCH(
   if (!existingGroup) return Response.json({ error: "Group not found" }, { status: 404 })
 
   if (currency !== undefined) {
+    if (typeof currency !== "string" || !CURRENCY_RE.test(currency)) {
+      return Response.json({ error: "Invalid currency" }, { status: 400 })
+    }
     const hasMoneyActivity = existingGroup._count.expenses > 0 || existingGroup._count.settlements > 0
     if (hasMoneyActivity && currency !== existingGroup.currency) {
       return Response.json(
@@ -123,6 +119,12 @@ export async function PATCH(
   if (name !== undefined && (typeof name !== "string" || !name.trim() || name.trim().length > 100)) {
     return Response.json({ error: "Invalid name" }, { status: 400 })
   }
+  if (!isOptionalString(description, 500)) return Response.json({ error: "Description is too long (max 500 characters)" }, { status: 400 })
+  if (emoji !== undefined && !isSingleEmoji(emoji)) return Response.json({ error: "Emoji must be a single emoji" }, { status: 400 })
+  if (color !== undefined && (typeof color !== "string" || !COLOR_RE.test(color))) {
+    return Response.json({ error: "Color must be a hex value like #6366f1" }, { status: 400 })
+  }
+  if (!isOptionalString(location, 120)) return Response.json({ error: "Location is too long" }, { status: 400 })
 
   // Coordinates follow the location: a changed location without coordinates is
   // re-geocoded, and clearing the location clears the map pin.
@@ -131,7 +133,8 @@ export async function PATCH(
     const place = typeof location === "string" && location.trim() ? location.trim() : null
     let pLat = typeof lat === "number" && Number.isFinite(lat) ? lat : null
     let pLng = typeof lng === "number" && Number.isFinite(lng) ? lng : null
-    if (place && (pLat === null || pLng === null)) {
+    // Over the per-user Nominatim quota: save the place without a pin rather than fail
+    if (place && (pLat === null || pLng === null) && await checkRateLimit(`geocode:${user.id}`, 10, 60 * 60 * 1000)) {
       const geo = await geocode(place)
       pLat = geo?.lat ?? null
       pLng = geo?.lng ?? null

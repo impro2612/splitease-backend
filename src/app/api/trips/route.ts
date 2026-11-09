@@ -4,7 +4,7 @@ import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@/generated/prisma/client"
 import { checkRateLimit } from "@/lib/rate-limit"
-import { CURRENCY_RE, type JsonBody } from "@/lib/request"
+import { CURRENCY_RE, isSingleEmoji, type JsonBody } from "@/lib/request"
 
 type TripWithDetails = Prisma.TripGetPayload<{
   include: {
@@ -102,6 +102,9 @@ export async function POST(req: NextRequest) {
   }
   if (currency !== undefined && (typeof currency !== "string" || !CURRENCY_RE.test(currency))) {
     return Response.json({ error: "Invalid currency" }, { status: 400 })
+  }
+  if (emoji !== undefined && !isSingleEmoji(emoji)) {
+    return Response.json({ error: "Emoji must be a single emoji" }, { status: 400 })
   }
   if (categories !== undefined && !Array.isArray(categories)) {
     return Response.json({ error: "categories must be an array" }, { status: 400 })

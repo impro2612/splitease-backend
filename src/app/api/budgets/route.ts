@@ -3,6 +3,7 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
+import { readJson, type JsonBody } from "@/lib/request"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -20,9 +21,9 @@ export async function POST(req: NextRequest) {
   const locked = await requirePlus(user.id)
   if (locked) return locked
 
-  const { category, amount } = await req.json()
+  const { category, amount } = await readJson<JsonBody>(req)
 
-  if (!CATEGORIES.includes(category)) {
+  if (typeof category !== "string" || !(CATEGORIES as readonly string[]).includes(category)) {
     return Response.json({ error: "Invalid category" }, { status: 400 })
   }
   const numAmount = parseFloat(amount)
@@ -45,8 +46,7 @@ export async function DELETE(req: NextRequest) {
   const locked = await requirePlus(user.id)
   if (locked) return locked
 
-  const body = await req.json()
-  const { category } = body ?? {}
+  const { category } = await readJson<JsonBody>(req)
   if (!category || typeof category !== "string" || !(CATEGORIES as readonly string[]).includes(category)) {
     return Response.json({ error: "Invalid category" }, { status: 400 })
   }
