@@ -5,7 +5,7 @@ import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { EMAIL_RE, normalizeEmail } from "@/lib/email"
 import { readJson } from "@/lib/request"
 import { blockedPairs, pairKey } from "@/lib/blocks"
-import { getNetPerPerson } from "@/lib/balance"
+import { buildBalanceMap, getNetPerPerson, getPairwiseNetCents } from "@/lib/balance"
 
 const pushUserSelect = { id: true, name: true, email: true, pushDevices: { select: { token: true } } } as const
 
@@ -140,17 +140,28 @@ export async function DELETE(
 
   // Someone with unsettled money in this group can't be removed (or leave): their debts
   // would stay in everyone's balances while they disappear from the member list.
-  const [groupExpenses, groupSettlements] = await Promise.all([
+  const [groupExpenses, groupSettlements, groupRow] = await Promise.all([
     prisma.expense.findMany({ where: { groupId }, select: { currency: true, paidById: true, splits: { select: { userId: true, amount: true, paid: true } } } }),
     prisma.settlement.findMany({ where: { groupId }, select: { currency: true, fromUserId: true, toUserId: true, amount: true } }),
+    prisma.group.findUnique({ where: { id: groupId }, select: { smartDebtsEnabled: true } }),
   ])
   const unsettled: string[] = []
   for (const currency of new Set([...groupExpenses.map((e) => e.currency), ...groupSettlements.map((x) => x.currency)])) {
-    const net = getNetPerPerson(
-      groupExpenses.filter((e) => e.currency === currency),
-      groupSettlements.filter((x) => x.currency === currency),
-      true
-    ).get(userId) ?? 0
+    const exps = groupExpenses.filter((e) => e.currency === currency)
+    const setts = groupSettlements.filter((x) => x.currency === currency)
+    let net: number
+    if (groupRow?.smartDebtsEnabled) {
+      net = getNetPerPerson(exps, setts, true).get(userId) ?? 0
+    } else {
+      // Pairwise mode shows each pair separately, so owing B 10 while being owed 10 by C is
+      // NOT settled: block if any pair involving this member is non-zero
+      const map = buildBalanceMap(exps, setts, true)
+      const others = new Set<string>()
+      for (const [from, row] of Object.entries(map)) for (const to of Object.keys(row)) { if (from === userId) others.add(to); if (to === userId) others.add(from) }
+      others.delete(userId)
+      const open = [...others].map((o) => getPairwiseNetCents(map, o, userId)).filter((c) => c !== 0)
+      net = open.length === 0 ? 0 : open.reduce((a, c) => a + c, 0) || open[0]
+    }
     if (net !== 0) unsettled.push(`${net > 0 ? (userId === user.id ? "are owed" : "is owed") : (userId === user.id ? "owe" : "owes")} ${Math.abs(net) / 100} ${currency}`)
   }
   if (unsettled.length > 0) {
