@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { pusherServer } from "@/lib/pusher"
+import { invalidatePlusCache } from "./plus"
 
 // RevenueCat is the source of truth for store subscriptions (App Store + Play).
 // The app logs in to RevenueCat with our user id, so app_user_id === User.id.
@@ -19,6 +20,7 @@ export async function syncPlusFromRevenueCat(userId: string): Promise<Date | nul
     const res = await fetch(`https://api.revenuecat.com/v1/subscribers/${encodeURIComponent(userId)}`, {
       headers: { Authorization: `Bearer ${key}` },
       cache: "no-store",
+      signal: AbortSignal.timeout(3_000), // a slow RevenueCat must not hang a gated route
     })
     if (!res.ok) return undefined
     const json = await res.json()
@@ -35,6 +37,7 @@ export async function syncPlusFromRevenueCat(userId: string): Promise<Date | nul
       // A new period or a re-subscribe starts the ending reminders over
       data: { plusUntil: until, plusWillRenew: willRenew, ...(changed ? { plusEndReminder: null } : {}) },
     })
+    invalidatePlusCache(userId)
     if (changed) await notifyPlusChanged(userId)
     return until
   } catch {

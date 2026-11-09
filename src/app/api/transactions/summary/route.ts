@@ -3,7 +3,8 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { CATEGORIES } from "@/lib/categorize"
-import { currentMonth, monthKey, parseMonth } from "@/lib/month"
+import { monthKey, parseMonth } from "@/lib/month"
+import { currentMonthFor, localDayKey, localMonthKey, monthRangeUtc, tzOffsetMinutes } from "@/lib/tz"
 
 // GET /api/transactions/summary?month=2026-04
 export async function GET(req: NextRequest) {
@@ -15,12 +16,13 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const month = searchParams.get("month") // "YYYY-MM", defaults to current month
 
-  const parsed = month ? parseMonth(month) : currentMonth()
+  // Month boundaries follow the user's timezone (x-tz-offset), not the server's UTC clock
+  const tz = tzOffsetMinutes(req)
+  const parsed = month ? parseMonth(month) : currentMonthFor(tz)
   if (!parsed) return Response.json({ error: "month must be YYYY-MM" }, { status: 400 })
   const { y, m } = parsed
 
-  const start = new Date(y, m - 1, 1)
-  const end   = new Date(y, m, 1)
+  const { start, end } = monthRangeUtc(y, m, tz)
 
   const transactions = await prisma.personalTransaction.findMany({
     where: { userId: user.id, date: { gte: start, lt: end } },
@@ -38,7 +40,7 @@ export async function GET(req: NextRequest) {
     } else {
       totalExpense += t.amount
       byCat[t.category] = (byCat[t.category] ?? 0) + t.amount
-      const day = t.date.toISOString().split("T")[0]
+      const day = localDayKey(t.date, tz)
       byDay[day] = (byDay[day] ?? 0) + t.amount
     }
   }
@@ -50,20 +52,20 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.amount - a.amount)
 
   // Last 6 months trend — one query for the whole window instead of six
-  const trendStart = new Date(y, m - 6, 1)
+  const trendStart = monthRangeUtc(y, m - 5, tz).start
   const trendTxns = await prisma.personalTransaction.findMany({
     where: { userId: user.id, date: { gte: trendStart, lt: end } },
     select: { amount: true, type: true, date: true },
   })
   const monthlyTrend: { month: string; income: number; expense: number }[] = []
   for (let i = 5; i >= 0; i--) {
-    const d = new Date(y, m - 1 - i, 1)
-    const label = monthKey(d.getFullYear(), d.getMonth() + 1)
+    const d = new Date(Date.UTC(y, m - 1 - i, 1))
+    const label = monthKey(d.getUTCFullYear(), d.getUTCMonth() + 1)
     monthlyTrend.push({ month: label, income: 0, expense: 0 })
   }
   const byLabel = new Map(monthlyTrend.map((t) => [t.month, t]))
   for (const t of trendTxns) {
-    const bucket = byLabel.get(monthKey(t.date.getFullYear(), t.date.getMonth() + 1))
+    const bucket = byLabel.get(localMonthKey(t.date, tz))
     if (!bucket) continue
     if (t.type === "credit") bucket.income += t.amount
     else if (t.type === "debit") bucket.expense += t.amount

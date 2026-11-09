@@ -3,7 +3,8 @@ import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { prisma } from "@/lib/prisma"
 import { GoogleGenerativeAI } from "@google/generative-ai"
-import { currentMonth, parseMonth } from "@/lib/month"
+import { parseMonth } from "@/lib/month"
+import { currentMonthFor, localDayKey, monthRangeUtc, tzOffsetMinutes } from "@/lib/tz"
 
 // GET /api/transactions/insights?month=2026-04
 export async function GET(req: NextRequest) {
@@ -14,13 +15,14 @@ export async function GET(req: NextRequest) {
 
   const { searchParams } = new URL(req.url)
   const month = searchParams.get("month")
-  const parsed = month ? parseMonth(month) : currentMonth()
+  // Month boundaries follow the user's timezone (x-tz-offset), not the server's UTC clock
+  const tz = tzOffsetMinutes(req)
+  const parsed = month ? parseMonth(month) : currentMonthFor(tz)
   if (!parsed) return Response.json({ error: "month must be YYYY-MM" }, { status: 400 })
   const { y, m } = parsed
 
-  const start = new Date(y, m - 1, 1)
-  const end   = new Date(y, m, 1)
-  const prevStart = new Date(y, m - 2, 1)
+  const { start, end } = monthRangeUtc(y, m, tz)
+  const prevStart = monthRangeUtc(y, m - 1, tz).start
 
   const [txns, prevTxns, budgets] = await Promise.all([
     prisma.personalTransaction.findMany({
@@ -116,7 +118,7 @@ Alerts:${budgetAlerts.map((a)=>`${a.category}+₹${a.overspent.toFixed(0)}`).joi
     aiSummary,
     highSpendDays: Object.entries(
       debits.reduce((acc: Record<string, number>, t) => {
-        const day = t.date.toISOString().split("T")[0]
+        const day = localDayKey(t.date, tz)
         acc[day] = (acc[day] ?? 0) + t.amount
         return acc
       }, {})

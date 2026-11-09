@@ -12,3 +12,12 @@ export function resetCodeMatches(email: string, code: string, storedHash: string
   const b = Buffer.from(storedHash, "hex")
   return a.length === b.length && crypto.timingSafeEqual(a, b)
 }
+
+/**
+ * Email-change codes live in the same PasswordReset table but are bound to the user AND
+ * the new address, so a code can never be replayed as a password reset (different prefix)
+ * or against another account.
+ */
+export function hashEmailChangeCode(userId: string, email: string, code: string): string {
+  return crypto.createHash("sha256").update(`email-change:${userId}:${email}:${code}`).digest("hex")
+}

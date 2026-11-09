@@ -78,6 +78,11 @@ export async function POST(req: NextRequest, { params }: Params) {
   }
   if (content.length > 10_000) return Response.json({ error: "Message too long" }, { status: 400 })
 
+  // A retry of an already-stored message must not re-signal, re-notify or move chatReadAt
+  const existing = await prisma.groupMessage.findUnique({ where: { senderId_clientId: { senderId: user.id, clientId } } })
+  if (existing) return Response.json({ ...existing, senderName: user.name ?? user.email }, { status: 200 })
+
+  // Upsert so a concurrent duplicate of the same clientId still can't fail
   const message = await prisma.groupMessage.upsert({
     where: { senderId_clientId: { senderId: user.id, clientId } },
     update: {},

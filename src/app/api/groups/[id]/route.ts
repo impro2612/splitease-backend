@@ -7,6 +7,7 @@ import { geocode } from "@/lib/geocode"
 import { checkRateLimit } from "@/lib/rate-limit"
 import { COLOR_RE, CURRENCY_RE, isOptionalString, isSingleEmoji, readJson, type JsonBody } from "@/lib/request"
 import { isAllowedImageUrl, parseCredit } from "@/lib/group-image"
+import { deleteGroupPhotoIfUnused, groupPhotoIdFromUrl } from "@/lib/group-photo"
 import { expenseToApi } from "@/lib/expense-api"
 
 export async function GET(
@@ -82,7 +83,7 @@ export async function PATCH(
 
   const existingGroup = await prisma.group.findUnique({
     where: { id },
-    select: { name: true, emoji: true, currency: true, _count: { select: { expenses: true, settlements: true } } },
+    select: { name: true, emoji: true, currency: true, imageUrl: true, _count: { select: { expenses: true, settlements: true } } },
   })
   if (!existingGroup) return Response.json({ error: "Group not found" }, { status: 404 })
 
@@ -144,19 +145,26 @@ export async function PATCH(
     locationData = { lat, lng }
   }
 
-  const group = await prisma.group.update({
-    where: { id },
-    data: {
-      ...(name !== undefined && { name: name.trim() }),
-      ...(description !== undefined && { description }),
-      ...(emoji !== undefined && { emoji }),
-      ...(imageUrl !== undefined && { imageUrl: imageUrl as string | null, imageCredit: imageUrl ? parseCredit(imageCredit) : null }),
-      ...(color !== undefined && { color }),
-      ...(currency !== undefined && { currency }),
-      ...locationData,
-      ...(startDate !== undefined && { startDate: patchStartDate }),
-      ...(endDate !== undefined && { endDate: patchEndDate }),
-    },
+  // An own-upload being replaced or cleared would otherwise sit orphaned in GroupPhoto
+  const oldPhotoId = imageUrl !== undefined && imageUrl !== existingGroup.imageUrl ? groupPhotoIdFromUrl(existingGroup.imageUrl) : null
+
+  const group = await prisma.$transaction(async (tx) => {
+    const updated = await tx.group.update({
+      where: { id },
+      data: {
+        ...(name !== undefined && { name: name.trim() }),
+        ...(description !== undefined && { description }),
+        ...(emoji !== undefined && { emoji }),
+        ...(imageUrl !== undefined && { imageUrl: imageUrl as string | null, imageCredit: imageUrl ? parseCredit(imageCredit) : null }),
+        ...(color !== undefined && { color }),
+        ...(currency !== undefined && { currency }),
+        ...locationData,
+        ...(startDate !== undefined && { startDate: patchStartDate }),
+        ...(endDate !== undefined && { endDate: patchEndDate }),
+      },
+    })
+    if (oldPhotoId) await deleteGroupPhotoIfUnused(tx, oldPhotoId)
+    return updated
   })
 
   if (name !== undefined && name !== existingGroup.name) {
@@ -190,37 +198,48 @@ export async function DELETE(
 
   const groupToDelete = await prisma.group.findUnique({
     where: { id },
-    select: { name: true, emoji: true },
+    select: { name: true, emoji: true, imageUrl: true },
   })
+  if (!groupToDelete) return Response.json({ error: "Group not found" }, { status: 404 })
 
   // Deleting a group with open balances would silently wipe what members owe each other
   // (an admin who owes money could erase their own debt), so everyone must be settled first.
-  const [groupExpenses, groupSettlements] = await Promise.all([
-    prisma.expense.findMany({ where: { groupId: id }, select: { currency: true, paidById: true, splits: { select: { userId: true, amount: true, paid: true } } } }),
-    prisma.settlement.findMany({ where: { groupId: id }, select: { currency: true, fromUserId: true, toUserId: true, amount: true } }),
-  ])
-  for (const currency of new Set([...groupExpenses.map((e) => e.currency), ...groupSettlements.map((x) => x.currency)])) {
-    const nets = getNetPerPerson(
-      groupExpenses.filter((e) => e.currency === currency),
-      groupSettlements.filter((x) => x.currency === currency),
-      true
-    )
-    if ([...nets.values()].some((cents) => cents !== 0)) {
-      return Response.json({ error: "Some members still owe money in this group. Settle all balances before deleting it." }, { status: 409 })
+  // The check and the deletes share one transaction so an expense added in between can't
+  // be lost: either it's seen by the check or the delete never happens.
+  const outcome = await prisma.$transaction(async (tx) => {
+    const [groupExpenses, groupSettlements] = await Promise.all([
+      tx.expense.findMany({ where: { groupId: id }, select: { currency: true, paidById: true, splits: { select: { userId: true, amount: true, paid: true } } } }),
+      tx.settlement.findMany({ where: { groupId: id }, select: { currency: true, fromUserId: true, toUserId: true, amount: true } }),
+    ])
+    for (const currency of new Set([...groupExpenses.map((e) => e.currency), ...groupSettlements.map((x) => x.currency)])) {
+      const nets = getNetPerPerson(
+        groupExpenses.filter((e) => e.currency === currency),
+        groupSettlements.filter((x) => x.currency === currency),
+        true
+      )
+      if ([...nets.values()].some((cents) => cents !== 0)) return "unsettled" as const
     }
-  }
 
-  // Log before delete so groupId relation is still valid (onDelete: SetNull keeps the row)
+    // The group's chat goes with it (explicit, in case FK cascades aren't enforced)
+    await tx.groupMessageReaction.deleteMany({ where: { message: { groupId: id } } })
+    await tx.groupMessage.deleteMany({ where: { groupId: id } })
+    await tx.group.delete({ where: { id } })
+    // ...and its own uploaded photo, unless another group copied the URL
+    const photoId = groupPhotoIdFromUrl(groupToDelete.imageUrl)
+    if (photoId) await deleteGroupPhotoIfUnused(tx, photoId)
+    return "deleted" as const
+  }, { timeout: 15_000 })
+
+  if (outcome === "unsettled") {
+    return Response.json({ error: "Some members still owe money in this group. Settle all balances before deleting it." }, { status: 409 })
+  }
+  // Logged after the commit (logActivity uses its own connection, which must not write
+  // while the transaction holds the lock). No groupId: the group is gone and the FK's
+  // onDelete: SetNull would have nulled it anyway.
   await logActivity({
     type: "group_deleted",
     actorId: user.id,
-    groupId: id,
-    meta: { groupName: groupToDelete?.name, groupEmoji: groupToDelete?.emoji },
+    meta: { groupName: groupToDelete.name, groupEmoji: groupToDelete.emoji },
   })
-
-  // The group's chat goes with it (explicit, in case FK cascades aren't enforced)
-  await prisma.groupMessageReaction.deleteMany({ where: { message: { groupId: id } } })
-  await prisma.groupMessage.deleteMany({ where: { groupId: id } })
-  await prisma.group.delete({ where: { id } })
   return Response.json({ success: true }, { status: 200 })
 }

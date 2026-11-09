@@ -1,7 +1,7 @@
 import { NextRequest } from "next/server"
 import bcrypt from "bcryptjs"
 import { prisma } from "@/lib/prisma"
-import { checkRateLimit } from "@/lib/rate-limit"
+import { checkRateLimit, checkRateLimits } from "@/lib/rate-limit"
 import { normalizeEmail } from "@/lib/email"
 import { clientIp, readJson } from "@/lib/request"
 import { issueTokenPair } from "@/lib/tokens"
@@ -20,27 +20,29 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const ip = clientIp(req)
-    // 10 attempts per 15 minutes per IP — brute-force protection
-    if (!await checkRateLimit(`signin:${ip}`, 10, 15 * 60 * 1000)) {
-      return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
-    }
-
     const { email: rawEmail, password } = await readJson<{ email: string; password: string }>(req)
     const email = normalizeEmail(rawEmail)
-    if (!email || typeof password !== "string" || !password) {
-      return Response.json({ error: "Email and password required" }, { status: 400 })
-    }
-    // Per account+network: a guesser on one network gets 10 tries per 15 min at this
-    // account. Kept separate from the account-wide cap so a stranger can't lock the real
-    // owner out by burning a small shared quota.
-    if (!await checkRateLimit(`signin-email-ip:${email}:${ip}`, 10, 15 * 60 * 1000)) {
-      return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
-    }
-    // Account-wide ceiling against distributed guessing (many IPs). High enough that
-    // locking someone out would take hundreds of attempts per hour.
-    if (!await checkRateLimit(`signin-email:${email}`, 200, 60 * 60 * 1000)) {
-      return Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
-    }
+    const tooMany = () => Response.json({ error: "Too many sign-in attempts. Please try again later." }, { status: 429 })
+
+    // Three limits, one Redis round trip:
+    //  - per IP: 10 attempts per 15 minutes — brute-force protection
+    //  - per account+network: a guesser on one network gets 10 tries per 15 min at this
+    //    account. Kept separate from the account-wide cap so a stranger can't lock the real
+    //    owner out by burning a small shared quota.
+    //  - account-wide ceiling against distributed guessing (many IPs). High enough that
+    //    locking someone out would take hundreds of attempts per hour.
+    // A malformed request only counts against the IP (as before, when it 400'd first).
+    const complete = !!email && typeof password === "string" && !!password
+    const [ipOk, emailIpOk, emailOk] = await checkRateLimits([
+      { key: `signin:${ip}`, max: 10, windowMs: 15 * 60 * 1000 },
+      ...(complete ? [
+        { key: `signin-email-ip:${email}:${ip}`, max: 10, windowMs: 15 * 60 * 1000 },
+        { key: `signin-email:${email}`, max: 200, windowMs: 60 * 60 * 1000 },
+      ] : []),
+    ])
+    if (!ipOk) return tooMany()
+    if (!complete) return Response.json({ error: "Email and password required" }, { status: 400 })
+    if (!emailIpOk || !emailOk) return tooMany()
 
     const user = await prisma.user.findUnique({ where: { email } })
     if (!user || !user.password) {

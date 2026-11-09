@@ -2,6 +2,7 @@ import { NextRequest } from "next/server"
 import { timingSafeEqual } from "crypto"
 import { prisma } from "@/lib/prisma"
 import { notifyPlusChanged, syncPlusFromRevenueCat } from "@/lib/revenuecat"
+import { invalidatePlusCache } from "@/lib/plus"
 import { decideWebhookFallback } from "@/lib/plus-webhook"
 
 function authorized(req: NextRequest): boolean {
@@ -41,6 +42,7 @@ export async function POST(req: NextRequest) {
       where: { id: user.id },
       data: { plusUntil: until, ...(willRenew === undefined ? {} : { plusWillRenew: willRenew, plusEndReminder: null }) },
     })
+    invalidatePlusCache(user.id)
     await notifyPlusChanged(user.id)
   }
   return Response.json({ ok: true })

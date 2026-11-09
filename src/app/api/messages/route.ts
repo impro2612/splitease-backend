@@ -51,8 +51,12 @@ export async function POST(req: NextRequest) {
   if (!friendship) return Response.json({ error: "Not friends" }, { status: 403 })
   if (block) return Response.json({ error: "Blocked" }, { status: 403 })
 
-  // Upsert by (sender, clientId) to handle retries — scoped to the sender so a
-  // guessed clientId can never return someone else's message
+  // A retry of an already-stored message must not ping or notify the receiver again
+  const existing = await prisma.message.findUnique({ where: { senderId_clientId: { senderId: user.id, clientId } } })
+  if (existing) return Response.json(existing, { status: 200 })
+
+  // Upsert by (sender, clientId) so a concurrent duplicate still can't fail — scoped to
+  // the sender so a guessed clientId can never return someone else's message
   const message = await prisma.message.upsert({
     where: { senderId_clientId: { senderId: user.id, clientId } },
     update: {},

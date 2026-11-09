@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { getSessionUser } from "@/lib/mobile-auth"
 import { requirePlus } from "@/lib/plus"
 import { buildBalanceMap, getUserTotals } from "@/lib/balance"
+import { localYear, tzOffsetMinutes } from "@/lib/tz"
 
 export async function GET(req: NextRequest) {
   const user = await getSessionUser(req)
@@ -12,6 +13,8 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url)
   const yearParam = url.searchParams.get("year")
+  // Years are the user's local years, not the server's (UTC on Vercel)
+  const tz = tzOffsetMinutes(req)
 
   const groups = await prisma.group.findMany({
     where: { members: { some: { userId: user.id } } },
@@ -36,30 +39,30 @@ export async function GET(req: NextRequest) {
 
   // Derive available years from expense dates AND group startDates
   const allYears = [
-    ...groups.flatMap(g => g.expenses.map(e => new Date(e.date).getFullYear())),
-    ...groups.filter(g => g.startDate).map(g => new Date(g.startDate!).getFullYear()),
+    ...groups.flatMap(g => g.expenses.map(e => localYear(new Date(e.date), tz))),
+    ...groups.filter(g => g.startDate).map(g => localYear(new Date(g.startDate!), tz)),
   ]
   const availableYears = [...new Set(allYears)].sort((a, b) => b - a)
   const parsedYear = yearParam ? parseInt(yearParam) : NaN
   const targetYear = Number.isInteger(parsedYear) && parsedYear > 2000 && parsedYear < 2100
     ? parsedYear
-    : (availableYears[0] ?? new Date().getFullYear())
+    : (availableYears[0] ?? localYear(new Date(), tz))
 
   // Money can only be added up within one currency. The recap uses the currency the
   // user spent in most this year; expenses/settlements in other currencies are left out
   // of the recap rather than being summed as if they were the same money.
   const countByCurrency: Record<string, number> = {}
   for (const g of groups) for (const e of g.expenses) {
-    if (new Date(e.date).getFullYear() === targetYear) countByCurrency[e.currency] = (countByCurrency[e.currency] ?? 0) + 1
+    if (localYear(new Date(e.date), tz) === targetYear) countByCurrency[e.currency] = (countByCurrency[e.currency] ?? 0) + 1
   }
   const currency = Object.entries(countByCurrency).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "INR"
 
   const yearGroups = groups
     .map(g => ({
       ...g,
-      expenses: g.expenses.filter(e => new Date(e.date).getFullYear() === targetYear && e.currency === currency),
+      expenses: g.expenses.filter(e => localYear(new Date(e.date), tz) === targetYear && e.currency === currency),
       // Settlements are scoped to the same year and currency as the expenses
-      settlements: g.settlements.filter(s => new Date(s.createdAt).getFullYear() === targetYear && s.currency === currency),
+      settlements: g.settlements.filter(s => localYear(new Date(s.createdAt), tz) === targetYear && s.currency === currency),
     }))
     .filter(g => g.expenses.length > 0)
 

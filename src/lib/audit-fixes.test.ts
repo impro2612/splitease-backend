@@ -3,7 +3,7 @@ import assert from "node:assert/strict"
 import { buildBalanceMap, clampSettlementCents, getNetPerPerson } from "./balance.ts"
 import { rescaleSplits } from "./splits.ts"
 import { classifyRefreshUse, deriveSuccessorToken, hashToken } from "./token-utils.ts"
-import { inMemoryRateLimit, inMemoryStoreSize } from "./rate-limit.ts"
+import { checkRateLimits, inMemoryRateLimit, inMemoryStoreSize } from "./rate-limit.ts"
 import { scrubActivityMeta } from "./activity-scrub.ts"
 import { decideWebhookFallback } from "./plus-webhook.ts"
 
@@ -114,6 +114,20 @@ test("in-memory limiter prunes expired keys when a new key is inserted", () => {
   assert.equal(inMemoryStoreSize(), sizeWithA + 1)
   inMemoryRateLimit(`prune-c:${Math.random()}`, 5, 1_000, t0 + 2_000) // a and b expired → pruned
   assert.equal(inMemoryStoreSize(), 1)
+})
+
+test("checkRateLimits returns one verdict per limit and counts each key on its own", async () => {
+  const a = `multi-a:${Math.random()}`, b = `multi-b:${Math.random()}`
+  // a allows 1 per window, b allows 3: the second batch must trip a but not b
+  const limits = [{ key: a, max: 1, windowMs: 60_000 }, { key: b, max: 3, windowMs: 60_000 }]
+  assert.deepEqual(await checkRateLimits(limits), [true, true])
+  assert.deepEqual(await checkRateLimits(limits), [false, true])
+  assert.deepEqual(await checkRateLimits(limits), [false, true])
+  assert.deepEqual(await checkRateLimits(limits), [false, false])
+  assert.deepEqual(await checkRateLimits([]), [])
+  // the same key listed twice in one batch is counted twice
+  const c = `multi-c:${Math.random()}`
+  assert.deepEqual(await checkRateLimits([{ key: c, max: 1, windowMs: 60_000 }, { key: c, max: 1, windowMs: 60_000 }]), [true, false])
 })
 
 // ---- activity meta scrub ----

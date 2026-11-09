@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server"
 import { getSessionUser } from "@/lib/mobile-auth"
-import { getPlusStatus } from "@/lib/plus"
+import { getPlusStatus, invalidatePlusCache } from "@/lib/plus"
 import { syncPlusFromRevenueCat } from "@/lib/revenuecat"
 import { checkRateLimit } from "@/lib/rate-limit"
 
@@ -13,5 +13,6 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: "Too many requests. Please slow down." }, { status: 429 })
   }
   await syncPlusFromRevenueCat(user.id)
+  invalidatePlusCache(user.id) // the app wants what the store says now, not a memoised answer
   return Response.json(await getPlusStatus(user.id))
 }

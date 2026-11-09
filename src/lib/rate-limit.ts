@@ -36,32 +36,35 @@ export function inMemoryStoreSize(): number {
   return store.size
 }
 
-async function upstashRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
+export type RateLimit = { key: string; max: number; windowMs: number }
+
+// One Upstash pipeline for every limit: INCR + EXPIRE per key, in order, so N checks cost
+// a single HTTP round trip instead of N. Any infra failure (DNS, timeout, deleted database,
+// bad response) falls back to the in-memory limiter — it must never turn sign-in into a 500.
+async function upstashRateLimits(limits: RateLimit[]): Promise<boolean[]> {
   const url   = REDIS_URL!
   const token = REDIS_TOKEN!
-  const windowSec = Math.ceil(windowMs / 1000)
-  const redisKey  = `rl:${key}`
-
-  // MULTI: INCR + EXPIRE in a single pipeline. Any infra failure (DNS, timeout, deleted
-  // database, bad response) falls back to the in-memory limiter — it must never turn
-  // sign-in into a 500.
   try {
     const res = await fetch(`${url}/pipeline`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-      body: JSON.stringify([
-        ["INCR", redisKey],
-        ["EXPIRE", redisKey, windowSec, "NX"],
-      ]),
+      body: JSON.stringify(limits.flatMap(({ key, windowMs }) => [
+        ["INCR", `rl:${key}`],
+        ["EXPIRE", `rl:${key}`, Math.ceil(windowMs / 1000), "NX"],
+      ])),
       signal: AbortSignal.timeout(2_000),
     })
     if (!res.ok) throw new Error(`Upstash HTTP ${res.status}`)
-    const results = await res.json() as { result: number }[]
-    const count = results[0]?.result ?? 0
-    return count <= max
+    const results = await res.json() as { result?: number; error?: string }[]
+    if (!Array.isArray(results) || results.length !== limits.length * 2) throw new Error("Upstash: unexpected pipeline response")
+    return limits.map((l, i) => {
+      const r = results[i * 2]
+      if (r?.error || typeof r?.result !== "number") throw new Error(r?.error ?? "Upstash: bad INCR result")
+      return r.result <= l.max
+    })
   } catch (err) {
     console.error("[rate-limit] Upstash unavailable, using in-memory fallback:", err instanceof Error ? err.message : err)
-    return inMemoryRateLimit(key, max, windowMs)
+    return limits.map((l) => inMemoryRateLimit(l.key, l.max, l.windowMs))
   }
 }
 
@@ -76,7 +79,14 @@ if (!useUpstash && typeof process !== "undefined" && process.env.NODE_ENV === "p
   console.warn("[rate-limit] No Redis configured — falling back to in-memory rate limiting (ineffective in serverless). Connect Upstash Redis to this project in Vercel (Storage tab).")
 }
 
+/** Checks several limits at once — one Redis round trip. Returns one boolean per limit, in order. */
+export async function checkRateLimits(limits: RateLimit[]): Promise<boolean[]> {
+  if (limits.length === 0) return []
+  if (useUpstash) return upstashRateLimits(limits)
+  return limits.map((l) => inMemoryRateLimit(l.key, l.max, l.windowMs))
+}
+
 export async function checkRateLimit(key: string, max: number, windowMs: number): Promise<boolean> {
-  if (useUpstash) return upstashRateLimit(key, max, windowMs)
-  return inMemoryRateLimit(key, max, windowMs)
+  const [ok] = await checkRateLimits([{ key, max, windowMs }])
+  return ok
 }

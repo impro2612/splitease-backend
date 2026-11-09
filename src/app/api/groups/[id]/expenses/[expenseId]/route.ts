@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { buildAppUrl, getDisplayName, notifyUsers } from "@/lib/notify"
 import { logActivity } from "@/lib/activity"
 import { CURRENCY_RE, parseCategory, parseOptionalDate, readJson, type JsonBody } from "@/lib/request"
-import { buildExactSplits, rescaleSplits } from "@/lib/splits"
+import { buildEqualSplits, buildExactSplits, buildPercentageSplits, rescaleSplits } from "@/lib/splits"
 import { expenseToApi } from "@/lib/expense-api"
 
 type Params = { params: Promise<{ id: string; expenseId: string }> }
@@ -73,10 +73,19 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     let newSplitData: { userId: string; amount: number; paid: boolean }[]
 
-    if (reqSplits && Array.isArray(reqSplits) && reqSplits.length > 0) {
+    const hasSplits = Array.isArray(reqSplits) && reqSplits.length > 0
+    // Dispatch like creation: the request's splitType wins, else the stored one
+    const effectiveSplitType = reqSplitType ?? expense.splitType
+
+    if (reqSplitType === "EQUAL") {
+      // Re-split evenly over everyone currently in the group
+      newSplitData = buildEqualSplits(groupMembers.map((m) => m.userId), newAmountCents, newPaidById, currency ?? expense.currency)
+    } else if (hasSplits) {
       // Explicit splits — same validation as creation (members only, no negatives,
-      // no duplicates, sum must match the amount)
-      const built = buildExactSplits(reqSplits, newAmountCents, newPaidById, memberIdSet)
+      // no duplicates, sum must match the amount / percentages must total 100)
+      const built = effectiveSplitType === "PERCENTAGE"
+        ? buildPercentageSplits(reqSplits, newAmountCents, newPaidById, memberIdSet)
+        : buildExactSplits(reqSplits, newAmountCents, newPaidById, memberIdSet)
       if (!built.ok) return Response.json({ error: built.error }, { status: 400 })
       newSplitData = built.splits
     } else {

@@ -1,7 +1,15 @@
 // Group photos: real photos of the place from Wikipedia, and (when UNSPLASH_ACCESS_KEY is
 // set) Unsplash photos for everything else. Results are cached for a day per query.
 
-export type GroupImageCredit = { source: "wikipedia" | "unsplash"; name: string; link: string }
+export type GroupImageCredit = {
+  source: "wikipedia" | "unsplash"
+  name: string
+  link: string
+  // Wikimedia photos are CC-licensed: attribution needs the author and licence, not just the page
+  author?: string
+  license?: string
+  licenseLink?: string
+}
 export type GroupImage = { url: string; thumb: string; credit: GroupImageCredit; downloadLocation?: string }
 
 const UA = "SplitIT/1.0 (https://splitwithease.vercel.app; group photos)"
@@ -29,7 +37,55 @@ export function parseCredit(raw: unknown): string | null {
   const c = raw as Record<string, unknown>
   if ((c.source !== "wikipedia" && c.source !== "unsplash") || typeof c.name !== "string" || typeof c.link !== "string") return null
   if (!/^https:\/\/([a-z]+\.)?(wikipedia\.org|wikimedia\.org|unsplash\.com)\//.test(c.link)) return null
-  return JSON.stringify({ source: c.source, name: c.name.slice(0, 120), link: c.link.slice(0, 500) })
+  const credit: GroupImageCredit = { source: c.source, name: c.name.slice(0, 120), link: c.link.slice(0, 500) }
+  // Optional licence fields — kept only when well-formed, never a reason to drop the credit
+  if (typeof c.author === "string" && c.author.trim()) credit.author = c.author.trim().slice(0, 120)
+  if (typeof c.license === "string" && c.license.trim()) credit.license = c.license.trim().slice(0, 40)
+  if (typeof c.licenseLink === "string" && c.licenseLink.length <= 300 && /^https:\/\/[^\s]+$/.test(c.licenseLink)) {
+    credit.licenseLink = c.licenseLink
+  }
+  return JSON.stringify(credit)
+}
+
+const FALLBACK_LICENSE = {
+  author: "Wikimedia Commons contributors",
+  license: "CC BY-SA",
+  licenseLink: "https://creativecommons.org/licenses/by-sa/4.0/",
+}
+
+/** Plain text of an HTML snippet (Commons stores the artist as markup), whitespace collapsed. */
+function htmlToText(html: string, max: number): string {
+  return html
+    .replace(/<[^>]*>/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#0?39;/g, "'").replace(/&nbsp;/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, max)
+}
+
+/** Author + licence of a Commons file from its extmetadata; falls back to a generic CC BY-SA credit. */
+export async function wikimediaLicense(fileName: string): Promise<Pick<GroupImageCredit, "author" | "license" | "licenseLink">> {
+  const params = new URLSearchParams({
+    action: "query", format: "json", formatversion: "2",
+    titles: `File:${fileName}`, prop: "imageinfo", iiprop: "extmetadata",
+    iiextmetadatafilter: "Artist|LicenseShortName|LicenseUrl",
+  })
+  const res = await fetch(`https://en.wikipedia.org/w/api.php?${params}`, {
+    headers: { "User-Agent": UA },
+    next: { revalidate: DAY },
+  }).catch(() => null)
+  if (!res?.ok) return FALLBACK_LICENSE
+  const data = await res.json().catch(() => null)
+  const meta = data?.query?.pages?.[0]?.imageinfo?.[0]?.extmetadata
+  if (!meta) return FALLBACK_LICENSE
+  const author = typeof meta.Artist?.value === "string" ? htmlToText(meta.Artist.value, 80) : ""
+  const license = typeof meta.LicenseShortName?.value === "string" ? htmlToText(meta.LicenseShortName.value, 40) : ""
+  const licenseUrl = typeof meta.LicenseUrl?.value === "string" ? meta.LicenseUrl.value.trim() : ""
+  return {
+    author: author || FALLBACK_LICENSE.author,
+    license: license || FALLBACK_LICENSE.license,
+    licenseLink: /^https:\/\/[^\s]+$/.test(licenseUrl) && licenseUrl.length <= 300 ? licenseUrl : FALLBACK_LICENSE.licenseLink,
+  }
 }
 
 // Words that describe the outing rather than the place: "Manali trip 2027" → "Manali"
@@ -58,7 +114,7 @@ export async function wikipediaPlacePhotos(query: string): Promise<GroupImage[]>
   if (!res?.ok) return []
   const data = await res.json().catch(() => null)
   const pages: any[] = data?.query?.pages ?? []
-  return pages
+  const best = pages
     .filter((p) => p.coordinates && p.thumbnail?.source && p.pageimage)
     // Skip maps, flags, seals and diagrams — we want a photo of the place
     .filter((p) => !/(map|flag|locator|seal|emblem|logo|coat_of_arms|\.svg)/i.test(p.pageimage))
@@ -67,15 +123,20 @@ export async function wikipediaPlacePhotos(query: string): Promise<GroupImage[]>
     // (Manali, Chennai) or something nearby rather than the place itself
     .slice(0, 1)
     .filter((p) => !/(bajaj|vehicle|car_|motorcycle|scooter|barricade|portrait)/i.test(p.pageimage))
-    .map((p) => ({
-      url: p.thumbnail.source,
-      thumb: p.thumbnail.source,
-      credit: {
-        source: "wikipedia" as const,
-        name: p.title,
-        link: `https://en.wikipedia.org/wiki/File:${encodeURIComponent(p.pageimage)}`,
-      },
-    }))
+  if (best.length === 0) return []
+  // One extra lookup for the single chosen file: CC BY-SA requires naming author + licence
+  const p = best[0]
+  const license = await wikimediaLicense(p.pageimage)
+  return [{
+    url: p.thumbnail.source,
+    thumb: p.thumbnail.source,
+    credit: {
+      source: "wikipedia" as const,
+      name: p.title,
+      link: `https://en.wikipedia.org/wiki/File:${encodeURIComponent(p.pageimage)}`,
+      ...license,
+    },
+  }]
 }
 
 // Words people use for groups that photo sites don't tag well → what to search instead
