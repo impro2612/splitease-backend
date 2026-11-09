@@ -1,32 +1,21 @@
 import { NextRequest } from "next/server"
 import * as jose from "jose"
-import { getServerSession } from "next-auth"
-import { authOptions } from "./auth"
 import { MOBILE_JWT_SECRET } from "./jwt-secret"
 
 type SessionUser = { id: string; email: string; name?: string | null }
 
-// Works for both web (NextAuth session) and mobile (Bearer JWT)
+// Mobile Bearer JWT only. The legacy NextAuth cookie session (and its unthrottled
+// credentials callback) was removed: the website is a brochure site, the product is the apps.
 export async function getSessionUser(req: NextRequest): Promise<SessionUser | null> {
-  // 1. Try Bearer token (mobile)
   const authHeader = req.headers.get("authorization")
-  if (authHeader?.startsWith("Bearer ")) {
-    const token = authHeader.slice(7)
-    try {
-      const { payload } = await jose.jwtVerify(token, MOBILE_JWT_SECRET)
-      if (payload.id && payload.email) {
-        return { id: payload.id as string, email: payload.email as string, name: payload.name as string }
-      }
-    } catch {
-      return null
+  if (!authHeader?.startsWith("Bearer ")) return null
+  try {
+    const { payload } = await jose.jwtVerify(authHeader.slice(7), MOBILE_JWT_SECRET)
+    if (payload.id && payload.email) {
+      return { id: payload.id as string, email: payload.email as string, name: payload.name as string }
     }
+  } catch {
+    // expired or forged token
   }
-
-  // 2. Fall back to NextAuth session (web)
-  const session = await getServerSession(authOptions)
-  if (session?.user?.id) {
-    return { id: session.user.id, email: session.user.email ?? "", name: session.user.name }
-  }
-
   return null
 }

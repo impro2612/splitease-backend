@@ -58,6 +58,8 @@ model User {
   borrowEntriesAsBorrower BorrowEntry[] @relation("BorrowBorrower")
   trips                   Trip[]
   spendDiaries            SpendDiary[]
+  reportsMade     Report[] @relation("Reporter")
+  reportsReceived Report[] @relation("Reported")
 }
 
 model BorrowEntry {
@@ -404,6 +406,27 @@ model GroupPhoto {
   uploader User @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
 
   @@index([uploaderId])
+}
+
+// User reports of people or chat messages (Google UGC policy / Apple 1.2). Reviewed by hand.
+model Report {
+  id             String   @id @default(cuid())
+  reporterId     String
+  targetUserId   String
+  reason         String   // spam | harassment | inappropriate | scam | other
+  details        String?
+  messageId      String?  // direct message being reported
+  groupMessageId String?  // group chat message being reported
+  groupId        String?
+  snapshot       String?  // the message content as stored, so deletion can't hide it
+  status         String   @default("open") // open | reviewed | actioned
+  createdAt      DateTime @default(now())
+
+  reporter User @relation("Reporter", fields: [reporterId], references: [id], onDelete: Cascade)
+  target   User @relation("Reported", fields: [targetUserId], references: [id], onDelete: Cascade)
+
+  @@index([status, createdAt])
+  @@index([targetUserId])
 }
 
 model Block {
