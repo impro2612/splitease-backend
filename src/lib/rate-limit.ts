@@ -79,6 +79,27 @@ if (!useUpstash && typeof process !== "undefined" && process.env.NODE_ENV === "p
   console.warn("[rate-limit] No Redis configured — falling back to in-memory rate limiting (ineffective in serverless). Connect Upstash Redis to this project in Vercel (Storage tab).")
 }
 
+/**
+ * Daily keep-alive for the free-tier Upstash database: Upstash archives databases that see
+ * no traffic for a few weeks, which would silently drop us to the in-memory limiter.
+ * Called from the cleanup cron. Never throws.
+ */
+export async function pingRedis(): Promise<"ok" | "skipped" | "failed"> {
+  if (!useUpstash) return "skipped"
+  try {
+    const res = await fetch(`${REDIS_URL}/set/keepalive/${Date.now()}/EX/${7 * 24 * 3600}`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+      signal: AbortSignal.timeout(3_000),
+    })
+    if (!res.ok) throw new Error(`Upstash HTTP ${res.status}`)
+    return "ok"
+  } catch (err) {
+    console.error("[rate-limit] Upstash keep-alive ping failed:", err instanceof Error ? err.message : err)
+    return "failed"
+  }
+}
+
 /** Checks several limits at once — one Redis round trip. Returns one boolean per limit, in order. */
 export async function checkRateLimits(limits: RateLimit[]): Promise<boolean[]> {
   if (limits.length === 0) return []

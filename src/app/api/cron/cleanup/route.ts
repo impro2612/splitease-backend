@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { groupPhotoIdFromUrl } from "@/lib/group-photo"
 import { processPushReceipts } from "@/lib/push-receipts"
 import { captureError } from "@/lib/monitoring"
+import { pingRedis } from "@/lib/rate-limit"
 
 const HOUR = 60 * 60 * 1000
 const DAY = 24 * HOUR
@@ -46,10 +47,14 @@ export async function GET(req: NextRequest) {
   // Push receipts ride along here: Hobby allows only two scheduled crons
   const pushReceipts = await processPushReceipts().catch((e) => { captureError(e, { where: "cron/cleanup pushReceipts" }); return null })
 
+  // Keeps the free Upstash rate-limit DB from being archived during quiet weeks
+  const redis = await pingRedis()
+
   return Response.json({
     passwordResets: passwordResets.count,
     refreshTokens: refreshTokens.count,
     groupPhotos: groupPhotos.count,
     pushReceipts,
+    redis,
   })
 }
